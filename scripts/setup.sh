@@ -1,6 +1,56 @@
 #!/usr/bin/env bash
 set -ex
 
+# Function to wait for apt locks to be released
+wait_for_apt_locks() {
+    local timeout=600  # 10 minutes timeout
+    local start_time=$(date +%s)
+
+    while true; do
+        if ! fuser /var/lib/dpkg/lock >/dev/null 2>&1 && \
+           ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1 && \
+           ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+            return 0
+        fi
+
+        local current_time=$(date +%s)
+        local elapsed_time=$((current_time - start_time))
+        
+        if [ $elapsed_time -ge $timeout ]; then
+            echo "Timeout waiting for apt locks after ${timeout} seconds"
+            return 1
+        fi
+
+        echo "Waiting for apt locks to be released... (${elapsed_time}s elapsed)"
+        sleep 5
+    done
+}
+
+# Function to run apt commands with retries
+apt_install() {
+    local max_attempts=5
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "Attempt $attempt of $max_attempts: Running apt-get $*"
+        
+        if wait_for_apt_locks; then
+            if apt-get "$@"; then
+                return 0
+            fi
+        fi
+
+        attempt=$((attempt + 1))
+        if [ $attempt -le $max_attempts ]; then
+            echo "Retrying in 30 seconds..."
+            sleep 30
+        fi
+    done
+
+    echo "Failed to run apt-get $* after $max_attempts attempts"
+    return 1
+}
+
 # Create directories with proper permissions
 mkdir -p /var/lib/holochain/{config,data}/{holochain,lair}
 
@@ -15,8 +65,8 @@ chmod -R a+rX /var/log/journal
 systemctl restart systemd-journald
 
 # Install dependencies
-apt-get update
-apt-get install -y curl
+apt_install update
+apt_install install -y curl
 
 # Install holochain and lair-keystore
 curl -L -o /usr/local/bin/holochain https://github.com/matthme/holochain-binaries/releases/download/holochain-binaries-0.4.1/holochain-v0.4.1-x86_64-unknown-linux-gnu
@@ -28,13 +78,13 @@ chown root:root /usr/local/bin/holochain
 chown root:root /usr/local/bin/lair-keystore
 
 # Copy config files first
-cp /vagrant/services/config/conductor-config.yaml /var/lib/holochain/config/
+cp /tmp/services/config/conductor-config.yaml /var/lib/holochain/config/
 chown root:root /var/lib/holochain/config/conductor-config.yaml
 chmod 644 /var/lib/holochain/config/conductor-config.yaml
 
 # Set passwords
-LAIR_PASSWORD="secure-password"
-HOLOCHAIN_PASSWORD="secure-password"
+LAIR_PASSWORD=${LAIR_PASSWORD:-"secure-password"}
+HOLOCHAIN_PASSWORD=${HOLOCHAIN_PASSWORD:-"secure-password"}
 
 # Initialize lair-keystore and get connection URL
 echo "Initializing lair-keystore..."
@@ -60,7 +110,7 @@ echo "Updated conductor config:"
 cat /var/lib/holochain/config/conductor-config.yaml
 
 # Copy and set permissions for systemd service files
-cp /vagrant/services/systemd/*.service /etc/systemd/system/
+cp /tmp/services/systemd/*.service /etc/systemd/system/
 chown root:root /etc/systemd/system/lair-keystore.service
 chown root:root /etc/systemd/system/holochain.service
 chmod 644 /etc/systemd/system/lair-keystore.service
@@ -69,7 +119,6 @@ chmod 644 /etc/systemd/system/holochain.service
 # Enable and start services
 systemctl daemon-reload
 systemctl enable --now lair-keystore
-
 
 sleep 5  # Give lair-keystore more time to start and create socket
 systemctl enable --now holochain

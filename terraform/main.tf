@@ -11,48 +11,42 @@ provider "digitalocean" {
   token = var.do_token
 }
 
-# Create a new SSH key if not using existing
-resource "digitalocean_ssh_key" "holochain" {
-  count      = var.ssh_public_key != "" ? 1 : 0
-  name       = "${var.node_name}-key"
-  public_key = file(var.ssh_public_key)
-}
-
+# Use existing SSH key directly with the fingerprint/id
 resource "digitalocean_droplet" "holochain_node" {
   name     = var.node_name
   size     = var.droplet_size
   image    = "ubuntu-22-04-x64"
   region   = var.region
-  ssh_keys = var.ssh_key_id != "" ? [var.ssh_key_id] : [digitalocean_ssh_key.holochain[0].id]
+  ssh_keys = [var.ssh_key_id]
 
-  connection {
-    type        = "ssh"
-    user        = "root"
-    private_key = file(var.ssh_private_key)
-    host        = self.ipv4_address
-  }
+  # Copy files and run setup using local-exec
+  provisioner "local-exec" {
+    command = <<-EOT
+      # Wait for SSH to be ready
+      until ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${self.ipv4_address} 'exit' 2>/dev/null
+      do
+        echo "Waiting for SSH..."
+        sleep 5
+      done
 
-  # Copy required files
-  provisioner "file" {
-    source      = "${path.module}/../scripts"
-    destination = "/tmp"
-  }
+      # Copy files
+      rsync -av -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+        ${path.module}/../scripts/ \
+        root@${self.ipv4_address}:/tmp/scripts/
+      rsync -av -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+        ${path.module}/../services/ \
+        root@${self.ipv4_address}:/tmp/services/
 
-  provisioner "file" {
-    source      = "${path.module}/../services"
-    destination = "/tmp"
-  }
-
-  # Setup environment variables
-  provisioner "remote-exec" {
-    inline = [
-      "echo 'export HOLOCHAIN_VERSION=${var.holochain_version}' >> /root/.profile",
-      "echo 'export LAIR_PASSWORD=${var.lair_password}' >> /root/.profile",
-      "echo 'export HOLOCHAIN_PASSWORD=${var.holochain_password}' >> /root/.profile",
-      "chmod +x /tmp/scripts/*.sh",
-      "/tmp/scripts/setup.sh",
-      "/tmp/scripts/test.sh"
-    ]
+      # Setup environment and run scripts
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${self.ipv4_address} '
+        echo "export HOLOCHAIN_VERSION=${var.holochain_version}" >> /root/.profile
+        echo "export LAIR_PASSWORD=${var.lair_password}" >> /root/.profile
+        echo "export HOLOCHAIN_PASSWORD=${var.holochain_password}" >> /root/.profile
+        chmod +x /tmp/scripts/*.sh
+        /tmp/scripts/setup.sh
+        /tmp/scripts/test.sh
+      '
+    EOT
   }
 }
 
@@ -62,4 +56,4 @@ output "droplet_ip" {
 
 output "ssh_command" {
   value = "ssh root@${digitalocean_droplet.holochain_node.ipv4_address}"
-} 
+}
