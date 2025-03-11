@@ -8,7 +8,7 @@ Once you have a server running, we can start talking about installing an agent.
 # /bin/bash
 
 # downloading the app to be installed
-curl -L -o /var/lib/holochain/apps/piecework.happ https://github.com/unytco/hfvz-releases/releases/download/v0.6.1/hfvz.happ
+curl -L -o /var/lib/holochain/apps/piecework.happ <https://url.happ>
 
 hc sandbox call --running 9000 install-app /var/lib/holochain/apps/piecework.happ
 ```
