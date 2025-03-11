@@ -36,5 +36,5 @@ hc-sandbox: Added agent uhCAkmwZqe275HZtZ-a0praX8zHKTNwJSzqFKQAd5XSTkUou5d1IT
 # /bin/bash
 
 # install the app
-hc sandbox call --running 9000 install-app /var/lib/holochain/apps/piecework.happ --agent-key uhCAkmwZqe275HZtZ-a0praX8zHKTNwJSzqFKQAd5XSTkUou5d1IT
+hc sandbox call --running 9000 install-app --app-id <progenitor-piecework-app> --agent-key uhCAkmwZqe275HZtZ-a0praX8zHKTNwJSzqFKQAd5XSTkUou5d1IT /var/lib/holochain/apps/piecework.happ
 ```
