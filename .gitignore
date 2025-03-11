@@ -1,0 +1,25 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+.terraform.lock.hcl
+
+# SSH keys
+*.pem
+id_rsa*
+*.key
+
+# OS
+.DS_Store
+Thumbs.db 
+
+# Testing
+test/
+.vagrant/
+
+# Binary
+bin/hi 
+
+# NixOS
+result 

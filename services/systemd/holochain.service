@@ -1,0 +1,23 @@
+[Unit]
+Description=Holochain Service
+After=network.target lair-keystore.service
+Requires=lair-keystore.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment="RUST_LOG=holochain=debug"
+Environment="HOLOCHAIN_PASSWORD=secure-password"
+ExecStart=/bin/bash -c 'printf "${HOLOCHAIN_PASSWORD}" | /usr/local/bin/holochain --config-path /var/lib/holochain/config/conductor-config.yaml --piped'
+Restart=always
+RestartSec=5
+
+# Security settings
+ProtectSystem=full
+ReadWritePaths=/var/lib/holochain
+ReadWritePaths=/tmp
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target 
