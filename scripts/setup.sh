@@ -52,6 +52,7 @@ apt_install() {
 }
 
 # Create directories with proper permissions
+rm -rf /var/lib/holochain || true
 mkdir -p /var/lib/holochain/{config,data}/{holochain,lair}
 
 # Set root ownership and permissions
@@ -68,15 +69,28 @@ systemctl restart systemd-journald
 apt_install update
 apt_install install -y curl
 
+# Stop services if they are running
+systemctl stop holochain || true
+systemctl stop lair-keystore || true
+# Wait for processes to fully stop
+sleep 5
+
+# Ensure no lingering processes
+pkill -f holochain || true
+pkill -f lair-keystore || true
+sleep 2
+
 # Install holochain and lair-keystore
 curl -L -o /usr/local/bin/holochain https://github.com/matthme/holochain-binaries/releases/download/holochain-binaries-0.4.1/holochain-v0.4.1-x86_64-unknown-linux-gnu
 curl -L -o /usr/local/bin/lair-keystore https://github.com/matthme/holochain-binaries/releases/download/lair-binaries-0.5.3/lair-keystore-v0.5.3-x86_64-unknown-linux-gnu
+curl -L -o /usr/local/bin/hc https://github.com/matthme/holochain-binaries/releases/download/hc-binaries-0.4.1/hc-v0.4.1-x86_64-unknown-linux-gnu
 
 chmod 755 /usr/local/bin/holochain
 chmod 755 /usr/local/bin/lair-keystore
+chmod 755 /usr/local/bin/hc
 chown root:root /usr/local/bin/holochain
 chown root:root /usr/local/bin/lair-keystore
-
+chown root:root /usr/local/bin/hc
 # Copy config files first
 cp /tmp/services/config/conductor-config.yaml /var/lib/holochain/config/
 chown root:root /var/lib/holochain/config/conductor-config.yaml
