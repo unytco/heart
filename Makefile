@@ -24,16 +24,7 @@ dev-shell:                  # SSH into VM
 dev-watch:                  # Watch for changes and auto-rebuild
 	./scripts/dev.sh
 
-clean-test:                 # Clean up test environment
-	@echo "🧹 Cleaning up test environment..."
-	-vagrant global-status --prune
-	-pkill -f "vagrant"
-	-VBoxManage list runningvms | grep hi-test | cut -d'"' -f2 | xargs -r -I {} VBoxManage controlvm {} poweroff
-	-VBoxManage list vms | grep hi-test | cut -d'"' -f2 | xargs -r -I {} VBoxManage unregistervm {} --delete
-	rm -rf $(TEST_DIR)
-	@echo "✨ Cleanup complete"
-
-cleanup:
+clean-test:
 	@echo "Running full cleanup..."
 	sudo ./scripts/cleanup.sh
 

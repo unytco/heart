@@ -12,19 +12,9 @@ A toolkit for quickly setting up and managing Holochain nodes. HEART provides au
 - Testing framework
 - Development tools
 
-## Quick Start
-
-```bash
-make dev-init    # Initialize development environment
-make dev-test   # Run tests
-make cleanup    # Clean up resources
-```
-
-For more details, see [CONTRIBUTING.md](CONTRIBUTING.md)
-
 ## Overview
 
-`hi` provides:
+`heart` provides:
 
 - Automated NixOS setup with Holonix environment
 - Version-specific Holochain installations
@@ -41,48 +31,131 @@ For more details, see [CONTRIBUTING.md](CONTRIBUTING.md)
 - DigitalOcean API Token
 - SSH key added to DigitalOcean
 
-### Quick Start
+Here are the deployment steps:
 
-1. Set up credentials:
-
-   ```bash
-   export DO_TOKEN="your_digitalocean_token"
-   export SSH_KEY_ID="your_ssh_key_id"
-   ```
-
-2. Deploy a node:
-
-   ```bash
-   cd terraform
-   terraform init
-   terraform apply \
-     -var="do_token=${DO_TOKEN}" \
-     -var="ssh_key_id=${SSH_KEY_ID}" \
-     -var="holochain_version=0.4"
-   ```
-
-### Configuration
-
-Customize your deployment:
+#### Prerequisites Setup
 
 ```bash
-terraform apply \
-  -var="do_token=${DO_TOKEN}" \
-  -var="ssh_key_id=${SSH_KEY_ID}" \
-  -var="node_name=custom-name" \
-  -var="holochain_version=0.4" \
-  -var="droplet_size=s-4vcpu-8gb" \
-  -var="region=sfo3"
+# Install Terraform
+wget -O- https://apt.releases.hashicorp.com/gpg | \
+    gpg --dearmor | \
+    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+    https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+    sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+sudo apt-get update && sudo apt-get install terraform
+
+# Generate SSH key if you don't have one
+ssh-keygen -t rsa -b 4096
 ```
 
-## Environment
+#### Environment Setup
 
-Each node provides:
+```bash
+  # Copy example env file
+  cp .env.example .env
 
-- NixOS with flakes enabled
-- Holochain (version-specific)
-- lair-keystore
-- Development tools (jq, curl, git)
+  # Edit with your values
+  nano .env
+
+  # Load environment variables
+  source .env
+```
+
+#### DigitalOcean Setup
+
+- Create a DigitalOcean account
+- Generate an API token in the DigitalOcean dashboard
+- Add your SSH key to DigitalOcean and get either the SSH key ID or fingerprint:
+
+  Option 1: Using Web Interface
+
+  ```
+  1. Go to Settings -> Security -> SSH Keys
+  2. You can use either:
+     - The SSH key ID from the URL: https://cloud.digitalocean.com/account/security?i=XXXXX
+     - The fingerprint shown directly in the SSH key list
+  ```
+
+  Option 2: Using doctl CLI
+
+  ```bash
+  # Install doctl
+  sudo snap install doctl
+  # or
+  brew install doctl  # for MacOS
+
+  # Authenticate with your API token
+  doctl auth init
+
+  # List SSH keys with their IDs and fingerprints
+  doctl compute ssh-key list
+  ```
+
+  Option 3: Get fingerprint locally
+
+  ```bash
+  # For RSA keys
+  ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub | awk '{print $2}' | cut -d':' -f2-
+
+  # For ED25519 keys
+  ssh-keygen -E md5 -lf ~/.ssh/id_ed25519.pub | awk '{print $2}' | cut -d':' -f2-
+  ```
+
+#### Deploy
+
+```bash
+  # Initialize Terraform
+  cd terraform
+  terraform init
+
+  # Plan the deployment
+  terraform plan \
+    -var="do_token=${DO_TOKEN}" \
+    -var="ssh_key_id=${SSH_KEY_ID}" \
+    -var="node_name=${NODE_NAME}" \
+    -var="holochain_version=${HOLOCHAIN_VERSION}" \
+    -var="droplet_size=${DROPLET_SIZE}" \
+    -var="region=${REGION}" \
+    -var="lair_password=${LAIR_PASSWORD}" \
+    -var="holochain_password=${HOLOCHAIN_PASSWORD}"
+
+  # Apply the deployment
+  terraform apply \
+    -var="do_token=${DO_TOKEN}" \
+    -var="ssh_key_id=${SSH_KEY_ID}" \
+    -var="node_name=${NODE_NAME}" \
+    -var="holochain_version=${HOLOCHAIN_VERSION}" \
+    -var="droplet_size=${DROPLET_SIZE}" \
+    -var="region=${REGION}" \
+    -var="lair_password=${LAIR_PASSWORD}" \
+    -var="holochain_password=${HOLOCHAIN_PASSWORD}"
+```
+
+#### Post-Deployment
+
+```bash
+  # SSH into your node
+  ssh root@$(terraform output -raw droplet_ip)
+
+  # Check services
+  systemctl status holochain
+  systemctl status lair-keystore
+
+  # View logs
+  journalctl -u holochain
+  journalctl -u lair-keystore
+```
+
+6. Cleanup (when needed):
+
+```bash
+  terraform destroy \
+    -var="do_token=${DO_TOKEN}" \
+    -var="ssh_key_id=${SSH_KEY_ID}"
+```
 
 ## Development
 
@@ -98,3 +171,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and testing instruc
 - [ ] App version management
 - [ ] Monitoring setup
 - [ ] Backup procedures
+
+```
+
+```

@@ -4,8 +4,21 @@ variable "do_token" {
 }
 
 variable "ssh_key_id" {
-  description = "ID of SSH key in DigitalOcean"
+  description = "ID or fingerprint of SSH key in DigitalOcean"
   type        = string
+  default     = ""
+}
+
+variable "ssh_public_key" {
+  description = "Path to SSH public key file"
+  type        = string
+  default     = "~/.ssh/id_rsa.pub"
+}
+
+variable "ssh_private_key" {
+  description = "Path to SSH private key file"
+  type        = string
+  default     = "~/.ssh/id_rsa"
 }
 
 variable "node_name" {
@@ -17,7 +30,7 @@ variable "node_name" {
 variable "droplet_size" {
   description = "Size of the DigitalOcean droplet"
   type        = string
-  default     = "s-2vcpu-4gb"
+  default     = "s-4vcpu-8gb"
 }
 
 variable "region" {
@@ -29,5 +42,17 @@ variable "region" {
 variable "holochain_version" {
   description = "Version of Holochain to install"
   type        = string
-  default     = "0.2.3"
+  default     = "0.4.1"
+}
+
+variable "lair_password" {
+  description = "Password for Lair keystore"
+  type        = string
+  default     = "secure-password"
+}
+
+variable "holochain_password" {
+  description = "Password for Holochain conductor"
+  type        = string
+  default     = "secure-password"
 } 

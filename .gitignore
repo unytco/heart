@@ -23,3 +23,6 @@ bin/hi
 
 # NixOS
 result 
+
+# Environment
+.env
