@@ -10,7 +10,7 @@ Once you have a server running, we can start talking about installing an agent.
 # downloading the app to be installed
 curl -L -o /var/lib/holochain/apps/piecework.happ <https://url.happ>
 
-hc sandbox call --running 9000 install-app /var/lib/holochain/apps/piecework.happ
+hc sandbox call --running 8800 install-app /var/lib/holochain/apps/piecework.happ
 ```
 
 - Setting up an agent with a pre-existing public key
@@ -19,14 +19,14 @@ hc sandbox call --running 9000 install-app /var/lib/holochain/apps/piecework.hap
 # /bin/bash
 
 # create a new agent
-hc sandbox call --running 9000 new-agent
+hc sandbox call --running 8800 new-agent
 
 ```
 
 Output:
 
 ```bash
-root@heart-node:~# hc sandbox call --running 9000 new-agent
+root@heart-node:~# hc sandbox call --running 8800 new-agent
 hc-sandbox: Added agent uhCAkmwZqe275HZtZ-a0praX8zHKTNwJSzqFKQAd5XSTkUou5d1IT
 ```
 
@@ -36,5 +36,8 @@ hc-sandbox: Added agent uhCAkmwZqe275HZtZ-a0praX8zHKTNwJSzqFKQAd5XSTkUou5d1IT
 # /bin/bash
 
 # install the app
-hc sandbox call --running 9000 install-app --app-id <progenitor-piecework-app> --agent-key uhCAkmwZqe275HZtZ-a0praX8zHKTNwJSzqFKQAd5XSTkUou5d1IT /var/lib/holochain/apps/piecework.happ
+hc sandbox call --running 8800 install-app --app-id <progenitor-piecework-app> --agent-key uhCAkmwZqe275HZtZ-a0praX8zHKTNwJSzqFKQAd5XSTkUou5d1IT /var/lib/holochain/apps/piecework.happ
+
+# Verify the app is installed
+hc sandbox call --running 8800 list-apps
 ```
