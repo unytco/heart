@@ -62,4 +62,12 @@ check "Holochain service status"
 systemctl is-active holochain
 check "Holochain service is active"
 
+# Check if piecework_cli is installed
+echo "Checking piecework_cli..."
+test -x "/usr/local/bin/piecework_cli"
+check "piecework_cli binary exists"
+
+piecework_cli --version
+check "piecework_cli is runnable"
+
 echo -e "\n${GREEN}All tests passed!${NC}" 

@@ -67,7 +67,22 @@ systemctl restart systemd-journald
 
 # Install dependencies
 apt_install update
-apt_install install -y curl
+apt_install install -y curl build-essential
+
+# Install Rust
+echo "Installing Rust..."
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+# Install piecework_cli
+echo "Installing piecework_cli..."
+cargo install piecework_cli
+
+# Make piecework_cli available system-wide
+echo "Making piecework_cli available system-wide..."
+ln -sf "$HOME/.cargo/bin/piecework_cli" /usr/local/bin/piecework_cli
+chmod 755 /usr/local/bin/piecework_cli
+chown root:root /usr/local/bin/piecework_cli
 
 # Stop services if they are running
 systemctl stop holochain || true
