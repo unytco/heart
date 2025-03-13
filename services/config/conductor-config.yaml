@@ -14,7 +14,7 @@ dpki:
 admin_interfaces:
   - driver:
       type: websocket
-      port: 9000
+      port: 8800
       allowed_origins: "*"
 network:
   transport_pool:
