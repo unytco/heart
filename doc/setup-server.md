@@ -50,37 +50,37 @@ ssh-keygen -t rsa -b 4096
 
   Option 1: Using Web Interface
 
-  ```
+```bash
   1. Go to Settings -> Security -> SSH Keys
   2. You can use either:
      - The SSH key ID from the URL: https://cloud.digitalocean.com/account/security?i=XXXXX
      - The fingerprint shown directly in the SSH key list
-  ```
+```
 
-  Option 2: Using doctl CLI
+Option 2: Using doctl CLI
 
-  ```bash
-  # Install doctl
-  sudo snap install doctl
-  # or
-  brew install doctl  # for MacOS
+```bash
+# Install doctl
+sudo snap install doctl
+# or
+brew install doctl  # for MacOS
 
-  # Authenticate with your API token
-  doctl auth init
+# Authenticate with your API token
+doctl auth init
 
-  # List SSH keys with their IDs and fingerprints
-  doctl compute ssh-key list
-  ```
+# List SSH keys with their IDs and fingerprints
+doctl compute ssh-key list
+```
 
-  Option 3: Get fingerprint locally
+Option 3: Get fingerprint locally
 
-  ```bash
-  # For RSA keys
-  ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub | awk '{print $2}' | cut -d':' -f2-
+```bash
+# For RSA keys
+ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub | awk '{print $2}' | cut -d':' -f2-
 
-  # For ED25519 keys
-  ssh-keygen -E md5 -lf ~/.ssh/id_ed25519.pub | awk '{print $2}' | cut -d':' -f2-
-  ```
+# For ED25519 keys
+ssh-keygen -E md5 -lf ~/.ssh/id_ed25519.pub | awk '{print $2}' | cut -d':' -f2-
+```
 
 #### Deploy
 
