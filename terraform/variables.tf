@@ -42,7 +42,7 @@ variable "region" {
 variable "holochain_version" {
   description = "Version of Holochain to install"
   type        = string
-  default     = "0.4.1"
+  default     = "0.5.2"
 }
 
 variable "lair_password" {

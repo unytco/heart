@@ -20,7 +20,7 @@ HEART is a toolkit for quickly setting up and managing Holochain nodes. It provi
 
 ## Documentation
 
-- [Setup Server](./doc/setup-server.md)
+- [Setup A DO that is running a Holochain conductor](./doc/setup-do-holochain-server.md)
 - [Setup Progenitor](./doc/setup-progenitor.md)
 - [Install Agents](./doc/install-agents.md)
 
