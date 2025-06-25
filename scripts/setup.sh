@@ -96,9 +96,9 @@ pkill -f lair-keystore || true
 sleep 2
 
 # Install holochain and lair-keystore
-curl -L -o /usr/local/bin/holochain https://github.com/matthme/holochain-binaries/releases/download/holochain-binaries-0.4.1/holochain-v0.4.1-x86_64-unknown-linux-gnu
-curl -L -o /usr/local/bin/lair-keystore https://github.com/matthme/holochain-binaries/releases/download/lair-binaries-0.5.3/lair-keystore-v0.5.3-x86_64-unknown-linux-gnu
-curl -L -o /usr/local/bin/hc https://github.com/matthme/holochain-binaries/releases/download/hc-binaries-0.4.1/hc-v0.4.1-x86_64-unknown-linux-gnu
+curl -L -o /usr/local/bin/holochain https://github.com/matthme/holochain-binaries/releases/download/holochain-binaries-${HOLOCHAIN_VERSION}/holochain-v${HOLOCHAIN_VERSION}-x86_64-unknown-linux-gnu
+curl -L -o /usr/local/bin/lair-keystore https://github.com/matthme/holochain-binaries/releases/download/lair-binaries-${LAIR_VERSION}/lair-keystore-v${LAIR_VERSION}-x86_64-unknown-linux-gnu
+curl -L -o /usr/local/bin/hc https://github.com/matthme/holochain-binaries/releases/download/hc-binaries-${HOLOCHAIN_VERSION}/hc-v${HOLOCHAIN_VERSION}-x86_64-unknown-linux-gnu
 
 chmod 755 /usr/local/bin/holochain
 chmod 755 /usr/local/bin/lair-keystore

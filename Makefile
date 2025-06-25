@@ -14,6 +14,7 @@ TF_VARS = \
 	-var="ssh_key_id=$(SSH_KEY_ID)" \
 	-var="node_name=$(NODE_NAME)" \
 	-var="holochain_version=$(HOLOCHAIN_VERSION)" \
+	-var="lair_version=$(LAIR_VERSION)" \
 	-var="droplet_size=$(DROPLET_SIZE)" \
 	-var="region=$(REGION)" \
 	-var="lair_password=$(LAIR_PASSWORD)" \
@@ -36,6 +37,7 @@ redeploy:
 	rsync -av services/ root@$$IP:/tmp/services/ && \
 	ssh root@$$IP \
 		"HOLOCHAIN_VERSION='$(HOLOCHAIN_VERSION)' \
+		LAIR_VERSION='$(LAIR_VERSION)' \
 		LAIR_PASSWORD='$(LAIR_PASSWORD)' \
 		HOLOCHAIN_PASSWORD='$(HOLOCHAIN_PASSWORD)' \
 		bash /tmp/scripts/setup.sh"

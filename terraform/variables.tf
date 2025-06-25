@@ -45,6 +45,12 @@ variable "holochain_version" {
   default     = "0.5.2"
 }
 
+variable "lair_version" {
+  description = "Version of Lair to install"
+  type        = string
+  default     = "0.6.1"
+}
+
 variable "lair_password" {
   description = "Password for Lair keystore"
   type        = string
