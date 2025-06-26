@@ -7,8 +7,8 @@ keystore:
   type: lair_server
   connection_url: ~ # Will be filled by setup script
 dpki:
-  dna_path: ~
-  network_seed: ""
+  dna_path: null
+  network_seed: ''
   allow_throwaway_random_dpki_agent_key: false
   no_dpki: true
 admin_interfaces:
@@ -17,60 +17,17 @@ admin_interfaces:
       port: 8800
       allowed_origins: "*"
 network:
-  transport_pool:
-    - type: webrtc
-      signal_url: "wss://sbd.holo.host"
-      webrtc_config: ~
-  bootstrap_service: "https://bootstrap.holo.host/"
-  tuning_params:
-    gossip_strategy: sharded-gossip
-    gossip_loop_iteration_delay_ms: "1000"
-    gossip_outbound_target_mbps: "100"
-    gossip_inbound_target_mbps: "100"
-    gossip_historic_outbound_target_mbps: "100"
-    gossip_historic_inbound_target_mbps: "100"
-    gossip_burst_ratio: "100"
-    gossip_peer_on_success_next_gossip_delay_ms: "60000"
-    gossip_peer_on_error_next_gossip_delay_ms: "300000"
-    gossip_agent_info_update_interval_ms: "300000"
-    gossip_round_timeout_ms: "60000"
-    gossip_redundancy_target: "100"
-    gossip_max_batch_size: "1000000"
-    gossip_arc_clamping: full
-    default_rpc_single_timeout_ms: "60000"
-    default_rpc_multi_remote_agent_count: "3"
-    default_rpc_multi_remote_request_grace_ms: "3000"
-    agent_info_expires_after_ms: "1200000"
-    tls_in_mem_session_storage: "512"
-    proxy_keepalive_ms: "120000"
-    proxy_to_expire_ms: "300000"
-    concurrent_limit_per_thread: "4096"
-    tx2_quic_max_idle_timeout_ms: "60000"
-    tx2_pool_max_connection_count: "4096"
-    tx2_channel_count_per_connection: "2"
-    tx2_implicit_timeout_ms: "60000"
-    tx2_initial_connect_retry_delay_ms: "200"
-    tx5_connection_count_max: "4096"
-    tx5_send_buffer_bytes_max: "65536"
-    tx5_recv_buffer_bytes_max: "65536"
-    tx5_incoming_message_bytes_max: "536870912"
-    tx5_message_size_max: "16777216"
-    tx5_internal_event_channel_size: "1024"
-    tx5_timeout_s: "60"
-    tx5_backoff_start_s: "5"
-    tx5_backoff_max_s: "60"
-    tx5_ban_time_s: "10"
-    tx5_min_ephemeral_udp_port: "1"
-    tx5_max_ephemeral_udp_port: "65535"
-    tx5_backend_tracing_enabled: "false"
-    danger_tls_keylog: no_keylog
-    danger_gossip_recent_threshold_secs: "900"
-    disable_publish: "false"
-    disable_recent_gossip: "false"
-    disable_historical_gossip: "false"
-    bootstrap_check_delay_backoff_multiplier: "2"
-    bootstrap_max_delay_s: "300"
-  network_type: quic_bootstrap
-  tracing_scope: ~
+  type: NetworkConfig
+  bootstrap_url: https://dev-test-bootstrap2.holochain.org/
+  signal_url: wss://dev-test-bootstrap2.holochain.org/
+  webrtc_config:
+    iceServers:
+      - urls:
+          - stun:stun.l.google.com:19302
+      - urls:
+          - stun:stun.cloudflare.com:3478
+  target_arc_factor: 1
+  advanced: null
 db_sync_strategy: Resilient
-tuning_params: ~
+tuning_params: null
+tracing_scope: null
