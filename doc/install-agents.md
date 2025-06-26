@@ -1,6 +1,8 @@
 # Setup Agents
 
-Once you have a server running, we can start talking about installing an agent.
+> **Note:** For a complete guide on setting up an always-on node including agent setup, see [Setup an Always-On Node](./setup-always-on-node.md).
+
+Once you have a server running, we can start talking about installing an agent. This document provides additional examples for specific agent installation scenarios.
 
 ## Setting up a basic node
 
@@ -33,6 +35,8 @@ hc-sandbox: Added agent uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm
 ```
 
 ## Importing an agent key into lair
+
+For importing keys generated with `hc_seed_bundle_cli`, see the [Always-On Node Setup guide](./setup-always-on-node.md#option-3-import-from-hc_seed_bundle_cli-most-control).
 
 ## Setting up an agent with a pre-existing public key
 

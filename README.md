@@ -20,9 +20,10 @@ HEART is a toolkit for quickly setting up and managing Holochain nodes. It provi
 
 ## Documentation
 
-- [Setup A DO that is running a Holochain conductor](./doc/setup-do-holochain-server.md)
-- [Setup Progenitor](./doc/setup-progenitor.md)
-- [Install Agents](./doc/install-agents.md)
+- **[Setup an Always-On Node](./doc/setup-always-on-node.md)** - Complete guide for setting up a production-ready Holochain node
+- [Setup A DO that is running a Holochain conductor](./doc/setup-do-holochain-server.md) - Technical details for server setup
+- [Setup Progenitor](./doc/setup-progenitor.md) - Setting up progenitor nodes specifically
+- [Install Agents](./doc/install-agents.md) - Additional agent installation examples
 
 ## Development
 
@@ -30,11 +31,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and testing instruc
 
 ## Roadmap
 
-- [x] Basic NixOS setup with Holonix
+- [x] Basic Ubuntu setup with Holochain
 - [x] Version-specific Holochain installations
 - [x] Automated testing environment
-- [ ] Piecework app installation
-- [ ] Agent key management
+- [x] Comprehensive setup documentation
+- [x] Agent key management documentation
+- [ ] Piecework app installation automation
 - [ ] App version management
 - [ ] Monitoring setup
 - [ ] Backup procedures
+- [ ] Snapshot-based rapid deployment

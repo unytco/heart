@@ -1,5 +1,7 @@
 # Setup Server
 
+> **Note:** For a complete step-by-step guide including agent setup and app installation, see [Setup an Always-On Node](./setup-always-on-node.md). This document provides technical details for the server deployment only.
+
 ## Deployment
 
 ### Prerequisites
