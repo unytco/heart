@@ -74,15 +74,15 @@ echo "Installing Rust..."
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
 
-# Install piecework_cli
-echo "Installing piecework_cli..."
-cargo install piecework_cli
+# Install domino_cli
+echo "Installing domino_cli..."
+cargo install domino_cli
 
-# Make piecework_cli available system-wide
-echo "Making piecework_cli available system-wide..."
-ln -sf "$HOME/.cargo/bin/piecework_cli" /usr/local/bin/piecework_cli
-chmod 755 /usr/local/bin/piecework_cli
-chown root:root /usr/local/bin/piecework_cli
+# Make domino_cli available system-wide
+echo "Making domino_cli available system-wide..."
+ln -sf "$HOME/.cargo/bin/domino_cli" /usr/local/bin/domino_cli
+chmod 755 /usr/local/bin/domino_cli
+chown root:root /usr/local/bin/domino_cli
 
 # Stop services if they are running
 systemctl stop holochain || true

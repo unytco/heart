@@ -297,7 +297,7 @@ hc sandbox call --running 8800 enable-app --app-id "your-app-id"
 
 You can now interact with your app using:
 
-- **piecework_cli** (pre-installed): `piecework_cli --help`
+- **domino_cli** (pre-installed): `domino_cli --help`
 - **Direct hc calls**: `hc sandbox call --running 8800 [command]`
 - **Custom client applications** connecting to the WebSocket interface on port 8800
 
@@ -381,7 +381,7 @@ Your always-on node includes:
 - **Holochain Conductor** (version specified in .env)
 - **Lair Keystore** (version specified in .env)
 - **hc CLI tool** for admin operations
-- **piecework_cli** for app interactions
+- **domino_cli** for app interactions
 - **Rust toolchain** for development
 - **Systemd services** for automatic startup and monitoring
 
