@@ -30,7 +30,7 @@ variable "node_name" {
 variable "droplet_size" {
   description = "Size of the DigitalOcean droplet"
   type        = string
-  default     = "s-4vcpu-8gb"
+  default     = "s-2vcpu-4gb"
 }
 
 variable "region" {
@@ -42,13 +42,13 @@ variable "region" {
 variable "holochain_version" {
   description = "Version of Holochain to install"
   type        = string
-  default     = "0.5.2"
+  default     = "0.5.4"
 }
 
 variable "lair_version" {
   description = "Version of Lair to install"
   type        = string
-  default     = "0.6.1"
+  default     = "0.6.2"
 }
 
 variable "lair_password" {

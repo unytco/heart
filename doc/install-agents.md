@@ -44,7 +44,7 @@ For importing keys generated with `hc_seed_bundle_cli`, see the [Always-On Node 
 # /bin/bash
 
 # install the app
-hc sandbox call --running 8800 install-app --app-id "progenitor-domino-app" --agent-key uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm /var/lib/holochain/apps/domino.happ
+hc sandbox call --running 8800 install-app --app-id "domino-progenitor" --agent-key uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm /var/lib/holochain/apps/domino.happ
 
 # Verify the app is installed
 hc sandbox call --running 8800 list-apps

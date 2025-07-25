@@ -60,8 +60,8 @@ Your `.env` file should contain:
 DO_TOKEN=your_digitalocean_api_token
 SSH_KEY_ID=your_ssh_key_id_or_fingerprint
 NODE_NAME=holochain-base-node
-HOLOCHAIN_VERSION=0.5.2
-LAIR_VERSION=0.6.1
+HOLOCHAIN_VERSION=0.5.4
+LAIR_VERSION=0.6.2
 DROPLET_SIZE=s-4vcpu-8gb
 REGION=nyc3
 LAIR_PASSWORD=secure-password
