@@ -1,25 +1,21 @@
 ---
 tracing_override: ~
 data_root_path: "/var/lib/holochain/data"
-device_seed_lair_tag: ~
-danger_generate_throwaway_device_seed: false
 keystore:
   type: lair_server
   connection_url: ~ # Will be filled by setup script
-dpki:
-  dna_path: null
-  network_seed: ''
-  allow_throwaway_random_dpki_agent_key: false
-  no_dpki: true
 admin_interfaces:
   - driver:
       type: websocket
       port: 8800
+      danger_bind_addr: ~
       allowed_origins: "*"
 network:
   type: NetworkConfig
+  base64_auth_material: ~
   bootstrap_url: https://dev-test-bootstrap2.holochain.org/
   signal_url: wss://dev-test-bootstrap2.holochain.org/
+  relay_url: https://use1-1.relay.n0.iroh-canary.iroh.link./
   webrtc_config:
     iceServers:
       - urls:
@@ -28,6 +24,7 @@ network:
           - stun:stun.cloudflare.com:3478
   target_arc_factor: 1
   advanced: null
+  request_timeout_s: 60
 db_sync_strategy: Resilient
 tuning_params: null
 tracing_scope: null

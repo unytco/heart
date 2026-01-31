@@ -12,9 +12,9 @@ Once you have a server running, we can start talking about installing an agent. 
 mkdir /var/lib/holochain/apps/
 
 # downloading the app to be installed
-curl -L -o /var/lib/holochain/apps/domino.happ <https://url.happ>
+curl -L -o /var/lib/holochain/infra/unyt.happ https://github.com/unytco/unyt-infra-marketplace/releases/download/v0.1.0/unyt.happ
 
-hc sandbox call --running 8800 install-app /var/lib/holochain/apps/domino.happ
+hc sandbox call --running 8800 install-app --app-id "hf-bridging"  /var/lib/holochain/unyt-sandbox/unyt.happ co.unyt.tx5.sandbox-0.49
 ```
 
 ## Setting up an agent with a pre-existing public key

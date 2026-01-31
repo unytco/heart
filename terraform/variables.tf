@@ -24,7 +24,7 @@ variable "ssh_private_key" {
 variable "node_name" {
   description = "Name of the Holochain node"
   type        = string
-  default     = "holochain-node"
+  default     = "bridging-node"
 }
 
 variable "droplet_size" {
@@ -42,13 +42,13 @@ variable "region" {
 variable "holochain_version" {
   description = "Version of Holochain to install"
   type        = string
-  default     = "0.5.4"
+  default     = "0.6.1-rc.0"
 }
 
 variable "lair_version" {
   description = "Version of Lair to install"
   type        = string
-  default     = "0.6.2"
+  default     = "0.6.3"
 }
 
 variable "lair_password" {
