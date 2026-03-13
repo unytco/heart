@@ -26,3 +26,12 @@ result
 
 # Environment
 .env
+
+# Pulumi (Go)
+/vendor/
+
+# Local dev environment
+.dev/
+
+# Rust target directory
+holo-keyutil/target/

@@ -1,0 +1,281 @@
+#cloud-config
+
+packages:
+  - curl
+  - jq
+  - openssl
+  - netcat-openbsd
+
+write_files:
+  # Conductor config. The lair connection_url is patched at first boot after lair is
+  # initialised (see holochain-first-boot). base64_auth_material is patched by
+  # holochain-register.service once an admin approves the node on the auth server.
+  - path: /etc/holochain/conductor-config.yaml
+    permissions: '0640'
+    owner: root:root
+    content: |
+      ---
+      tracing_override: ~
+      data_root_path: "/var/lib/holochain/data"
+      keystore:
+        type: lair_server
+        connection_url: LAIR_CONNECTION_URL_PLACEHOLDER
+      admin_interfaces:
+        - driver:
+            type: websocket
+            port: 8000
+            danger_bind_addr: ~
+            allowed_origins: "*"
+      network:
+        type: NetworkConfig
+        base64_auth_material: ~
+        bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
+        signal_url: http://not-used:1234
+        relay_url: https://hc-auth-iroh-unyt.holochain.org/
+        target_arc_factor: 1
+        advanced: null
+        request_timeout_s: 60
+      db_sync_strategy: Fast
+      tuning_params: null
+      tracing_scope: null
+
+  # First-boot setup: downloads Holochain binaries, initialises lair, discovers the lair
+  # connection URL, patches the conductor config, then enables and starts all services.
+  # Runs once via runcmd; subsequent boots are handled entirely by systemd.
+  - path: /usr/local/bin/holochain-first-boot
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -eo pipefail
+
+      HOLOCHAIN_VERSION="holochain-0.6.1-rc.3"
+      HOLO_KEYUTIL_VERSION="HOLO_KEYUTIL_TAG_PLACEHOLDER"
+      HOLOCHAIN_DIR=/var/lib/holochain
+      LAIR_DIR=${HOLOCHAIN_DIR}/lair
+      CONFIG_FILE=/etc/holochain/conductor-config.yaml
+
+      echo "==> Downloading Holochain binaries (${HOLOCHAIN_VERSION})..."
+      for binary in holochain lair-keystore hc; do
+          if [ -f "/usr/local/bin/${binary}" ]; then
+              echo "    ${binary} already present, skipping"
+              continue
+          fi
+          echo "    Downloading ${binary}..."
+          curl -fsSL \
+              -o "/usr/local/bin/${binary}" \
+              "https://github.com/holochain/holochain/releases/download/${HOLOCHAIN_VERSION}/${binary}-x86_64-unknown-linux-gnu"
+          chmod 755 "/usr/local/bin/${binary}"
+      done
+
+      echo "==> Downloading holo-keyutil (${HOLO_KEYUTIL_VERSION})..."
+      if [ -f "/usr/local/bin/holo-keyutil" ]; then
+          echo "    holo-keyutil already present, skipping"
+      else
+          curl -fsSL \
+              -o "/usr/local/bin/holo-keyutil" \
+              "https://github.com/unytco/heart/releases/download/${HOLO_KEYUTIL_VERSION}/holo-keyutil"
+          chmod 755 "/usr/local/bin/holo-keyutil"
+      fi
+
+      echo "==> Generating lair passphrase..."
+      mkdir -p "${HOLOCHAIN_DIR}"
+      if [ ! -f "${HOLOCHAIN_DIR}/lair-passphrase" ]; then
+          openssl rand -hex 32 > "${HOLOCHAIN_DIR}/lair-passphrase"
+          chmod 600 "${HOLOCHAIN_DIR}/lair-passphrase"
+          echo "    Passphrase written to ${HOLOCHAIN_DIR}/lair-passphrase"
+      else
+          echo "    Passphrase already exists, skipping"
+      fi
+
+      echo "==> Initialising lair keystore..."
+      printf '%s' "$(cat "${HOLOCHAIN_DIR}/lair-passphrase")" | \
+          /usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" init --piped \
+          || true  # non-zero if already initialised
+
+      echo "==> Discovering lair connection URL..."
+      LAIR_URL=$(/usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" url)
+      echo "    Lair URL: ${LAIR_URL}"
+
+      echo "==> Patching conductor config with lair URL..."
+      sed -i "s|connection_url: LAIR_CONNECTION_URL_PLACEHOLDER|connection_url: \"${LAIR_URL}\"|" \
+          "${CONFIG_FILE}"
+
+      echo "==> Enabling and starting services..."
+      systemctl daemon-reload
+      systemctl enable lair-keystore.service holochain.service holochain-register.service
+      systemctl start lair-keystore.service
+      systemctl start holochain.service
+      systemctl start holochain-register.service
+
+      echo "==> First-boot setup complete"
+
+  # Registers this node with the hc-auth-server. Runs as a systemd service after
+  # Holochain is up. Polls until an admin approves the request, then patches the
+  # auth material into the conductor config and restarts Holochain.
+  # The .registered flag prevents re-running after a successful registration.
+  - path: /usr/local/bin/holochain-register
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -eo pipefail
+
+      HOLOCHAIN_DIR=/var/lib/holochain
+      LAIR_DIR=${HOLOCHAIN_DIR}/lair
+      CONFIG_FILE=/etc/holochain/conductor-config.yaml
+      ADMIN_PORT=8000
+      AUTH_SERVER=https://hc-auth-iroh-unyt.holochain.org
+
+      echo "Waiting for Holochain admin port ${ADMIN_PORT}..."
+      attempts=0
+      while ! nc -z 127.0.0.1 "${ADMIN_PORT}" 2>/dev/null; do
+          attempts=$(( attempts + 1 ))
+          if [ "${attempts}" -ge 60 ]; then
+              echo "ERROR: Holochain did not open port ${ADMIN_PORT} within 60s" >&2
+              exit 1
+          fi
+          sleep 1
+      done
+      echo "Holochain ready"
+
+      LAIR_URL=$(/usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" url)
+      LAIR_PASSWORD=$(cat "${HOLOCHAIN_DIR}/lair-passphrase")
+
+      echo "Creating agent key..."
+      HC_OUTPUT=$(/usr/local/bin/hc sandbox call --running "${ADMIN_PORT}" new-agent 2>&1)
+      AGENT_KEY=$(echo "${HC_OUTPUT}" | awk '{print $NF}')
+      if [ -z "${AGENT_KEY}" ]; then
+          echo "ERROR: failed to parse agent key from: ${HC_OUTPUT}" >&2
+          exit 1
+      fi
+      echo "Agent key: ${AGENT_KEY}"
+
+      AGENT_PUBKEY_B64=$(/usr/local/bin/holo-keyutil extract-pubkey "${AGENT_KEY}")
+      echo "Agent pubkey (base64url): ${AGENT_PUBKEY_B64}"
+
+      # Save pubkey — needed when installing apps onto this node
+      echo "${AGENT_PUBKEY_B64}" > "${HOLOCHAIN_DIR}/agent-pub-key"
+      echo "Agent pubkey saved to ${HOLOCHAIN_DIR}/agent-pub-key"
+
+      # Submit auth request. The infra field lets an admin identify this machine.
+      # 202: request created, pending admin approval.
+      # 200: request already exists (e.g. previous attempt before reboot); go straight to auth.
+      # Anything else is an error.
+      echo "Submitting auth request..."
+      REQUEST_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+          "${AUTH_SERVER}/request-auth/${AGENT_PUBKEY_B64}" \
+          -H "Content-Type: application/json" \
+          -d "{\"agent\": \"${AGENT_PUBKEY_B64}\", \"timestamp\": $(date +%s), \"infra\": \"$(hostname)\"}")
+      case "${REQUEST_STATUS}" in
+          202) echo "Auth request submitted — waiting for admin approval on the auth server..." ;;
+          200) echo "Auth request already exists — proceeding to authenticate..." ;;
+          *)   echo "ERROR: unexpected status ${REQUEST_STATUS} from /request-auth" >&2; exit 1 ;;
+      esac
+
+      # Poll until an admin approves the key. A fresh challenge is fetched on each
+      # attempt because the /now timestamp changes.
+      while true; do
+          PAYLOAD_B64=$(curl -sf "${AUTH_SERVER}/now" | tr -d '\n\r')
+          SIG=$(/usr/local/bin/holo-keyutil sign \
+              "${LAIR_URL}" "${LAIR_PASSWORD}" "${AGENT_PUBKEY_B64}" "${PAYLOAD_B64}" \
+              | tr -d '\n\r')
+          AUTH_RESPONSE=$(curl -s -X PUT \
+              "${AUTH_SERVER}/authenticate" \
+              -H "Content-Type: application/octet-stream" \
+              -d "{\"pubKey\": \"${AGENT_PUBKEY_B64}\", \"payload\": \"${PAYLOAD_B64}\", \"signature\": \"${SIG}\"}")
+
+          AUTH_TOKEN=$(printf '%s' "${AUTH_RESPONSE}" | jq -r '.authToken // empty' 2>/dev/null)
+          if [ -n "${AUTH_TOKEN}" ]; then
+              echo "Auth token obtained"
+              break
+          fi
+
+          echo "Not yet approved (response: ${AUTH_RESPONSE}), retrying in 30s..."
+          sleep 30
+      done
+
+      echo "Updating conductor config with auth material..."
+      sed -i "s|base64_auth_material: ~|base64_auth_material: \"${AUTH_TOKEN}\"|" "${CONFIG_FILE}"
+
+      systemctl restart holochain.service
+
+      touch "${HOLOCHAIN_DIR}/.registered"
+      echo "Registration complete"
+
+  - path: /etc/systemd/system/lair-keystore.service
+    content: |
+      [Unit]
+      Description=Lair Keystore
+      After=network.target
+      StartLimitIntervalSec=0
+
+      [Service]
+      Type=simple
+      User=root
+      Group=root
+      ExecStart=/bin/bash -c 'printf "%%s" "$(cat /var/lib/holochain/lair-passphrase)" | /usr/local/bin/lair-keystore --lair-root /var/lib/holochain/lair server --piped'
+      Restart=always
+      RestartSec=3
+      StandardOutput=journal
+      StandardError=journal
+      ProtectSystem=full
+      ReadWritePaths=/var/lib/holochain
+      ReadWritePaths=/tmp
+      NoNewPrivileges=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/holochain.service
+    content: |
+      [Unit]
+      Description=Holochain Conductor
+      After=network.target lair-keystore.service
+      Requires=lair-keystore.service
+
+      [Service]
+      Type=simple
+      User=root
+      Group=root
+      Environment="RUST_LOG=holochain=info"
+      ExecStart=/bin/bash -c 'printf "%%s" "$(cat /var/lib/holochain/lair-passphrase)" | /usr/local/bin/holochain --config-path /etc/holochain/conductor-config.yaml --piped'
+      Restart=always
+      RestartSec=5
+      StandardOutput=journal
+      StandardError=journal
+      ProtectSystem=full
+      ReadWritePaths=/var/lib/holochain
+      ReadWritePaths=/tmp
+      NoNewPrivileges=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # holochain-register runs once after Holochain is up. systemd restarts it on failure
+  # (e.g. network blip, auth server unreachable) with StartLimitIntervalSec=0 so there
+  # is no cap on retries. Once .registered exists the ConditionPathExists prevents it
+  # running again, even across reboots.
+  - path: /etc/systemd/system/holochain-register.service
+    content: |
+      [Unit]
+      Description=Holochain Node Registration
+      After=holochain.service
+      Requires=holochain.service
+      ConditionPathExists=!/var/lib/holochain/.registered
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/local/bin/holochain-register
+      Restart=on-failure
+      RestartSec=30
+      StartLimitIntervalSec=0
+      StandardOutput=journal
+      StandardError=journal
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - [bash, /usr/local/bin/holochain-first-boot]

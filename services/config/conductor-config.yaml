@@ -7,24 +7,18 @@ keystore:
 admin_interfaces:
   - driver:
       type: websocket
-      port: 8800
+      port: 8000
       danger_bind_addr: ~
       allowed_origins: "*"
 network:
   type: NetworkConfig
-  base64_auth_material: ~
-  bootstrap_url: https://dev-test-bootstrap2.holochain.org/
-  signal_url: wss://dev-test-bootstrap2.holochain.org/
-  relay_url: https://use1-1.relay.n0.iroh-canary.iroh.link./
-  webrtc_config:
-    iceServers:
-      - urls:
-          - stun:stun.l.google.com:19302
-      - urls:
-          - stun:stun.cloudflare.com:3478
+  base64_auth_material: ~ # Will be filled by setup script
+  bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
+  signal_url: http://not-used:1234
+  relay_url: https://hc-auth-iroh-unyt.holochain.org/
   target_arc_factor: 1
   advanced: null
   request_timeout_s: 60
-db_sync_strategy: Resilient
+db_sync_strategy: Fast
 tuning_params: null
 tracing_scope: null
