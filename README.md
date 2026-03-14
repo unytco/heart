@@ -108,8 +108,9 @@ Everything lives under `/var/lib/holochain/`:
 
 | Service | Purpose |
 |---|---|
+| `telegraf.service` | Collects host metrics (CPU, memory, disk, network) and ships to InfluxDB |
 | `lair-keystore.service` | Lair keystore daemon |
-| `holochain.service` | Holochain conductor daemon |
+| `holochain.service` | Holochain conductor daemon (also ships Holochain metrics directly to InfluxDB) |
 | `holochain-register.service` | One-shot registration service — runs once after first boot, polls until an admin approves the node on the auth server |
 
 ### Installing an app

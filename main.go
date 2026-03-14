@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strconv"
+	"text/template"
 
 	"github.com/pulumi/pulumi-digitalocean/sdk/v4/go/digitalocean"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+
+type cloudInitData struct {
+	InfluxToken string
+}
 
 var regions = []digitalocean.Region{
 	digitalocean.RegionAMS3,
@@ -18,10 +24,27 @@ var regions = []digitalocean.Region{
 
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
-		defaultCloudInit, err := os.ReadFile("cloudinit/default/cloud-config.yaml")
+		cloudInitRaw, err := os.ReadFile("cloudinit/default/cloud-config.yaml")
 		if err != nil {
 			return fmt.Errorf("failed to read default cloud-init config: %w", err)
 		}
+		cloudInitTmpl, err := template.New("cloud-init").Parse(string(cloudInitRaw))
+		if err != nil {
+			return fmt.Errorf("failed to parse cloud-init template: %w", err)
+		}
+
+		influxToken, ok := ctx.GetConfig("heart:influx-token")
+		if !ok {
+			return fmt.Errorf("required config value 'influx-token' not set")
+		}
+
+		var cloudInitBuf bytes.Buffer
+		if err := cloudInitTmpl.Execute(&cloudInitBuf, cloudInitData{
+			InfluxToken: influxToken,
+		}); err != nil {
+			return fmt.Errorf("failed to render cloud-init template: %w", err)
+		}
+		defaultCloudInit := cloudInitBuf.String()
 
 		getSshKeysResult, err := digitalocean.GetSshKeys(ctx, &digitalocean.GetSshKeysArgs{}, nil)
 		if err != nil {
