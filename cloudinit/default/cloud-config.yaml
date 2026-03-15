@@ -80,7 +80,7 @@ write_files:
       set -eo pipefail
 
       HOLOCHAIN_VERSION="holochain-0.6.1-rc.3"
-      HOLO_KEYUTIL_VERSION="v0.1.0-test.1"
+      HOLO_KEYUTIL_VERSION="v0.1.0-test.2"
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
