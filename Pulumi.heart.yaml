@@ -5,6 +5,6 @@ config:
   heart:project-name: Holo
   heart:influx-token:
     secure: AAABAAJfsP5D/OmN7vTDh+5HC2uIfxHH7//didjko3SiL5LAuES8VTovNzAKgGOqUyTTnKH3NrQO6w1PDnhl+yyZ40DFfRdnyBgEcOeyKLCmieKwbJKNVeEbFH5zY0JQLXA4UioEsDPL1qyJ/8yrvaGAhfme2qHI
-  heart:blockchain-bridging-count: "0"
-  heart:unyt-bridging-count: "0"
-  heart:heart-always-online-count: "1"
+  heart:blockchain-bridging-count: "1"
+  heart:unyt-bridging-count: "1"
+  heart:heart-always-online-count: "2"

@@ -149,7 +149,7 @@ write_files:
       systemctl start telegraf.service
       systemctl start lair-keystore.service
       systemctl start holochain.service
-      systemctl start holochain-register.service
+      systemctl start --no-block holochain-register.service
 
       echo "==> First-boot setup complete"
 
