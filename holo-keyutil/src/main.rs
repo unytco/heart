@@ -30,8 +30,10 @@ enum Command {
         /// Lair passphrase
         passphrase: String,
         /// Agent public key as base64url (no padding)
+        #[arg(allow_hyphen_values = true)]
         pubkey: String,
         /// Data to sign as base64url (no padding)
+        #[arg(allow_hyphen_values = true)]
         data: String,
     },
     /// Extract the raw ed25519 public key from a Holochain AgentPubKey hash.
