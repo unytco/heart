@@ -13,10 +13,10 @@ HEART is a toolkit for quickly setting up and managing Holochain nodes. It provi
 
 ## Features
 
-- A Terraform module for deploying Holochain nodes to DigitalOcean
-  - This node is a ubuntu 22.04 server running Holonix
+- A Pulumi program for deploying Holochain nodes to DigitalOcean
+  - Nodes are Ubuntu 22.04 servers provisioned via cloud-init
   - Pre-configured to run a specified version of Holochain and Lair Keystore
-  - use can use a hc to install the apps you want to run
+  - Use `hc` to install the apps you want to run
 
 ## Documentation
 
@@ -36,9 +36,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and testing instruc
 - [x] Automated testing environment
 - [x] Comprehensive setup documentation
 - [x] Agent key management documentation
+- [x] Monitoring setup (Telegraf host metrics + Holochain metrics → InfluxDB)
 - [ ] Piecework app installation automation
 - [ ] App version management
-- [ ] Monitoring setup
 - [ ] Backup procedures
 - [ ] Snapshot-based rapid deployment
 
@@ -53,7 +53,7 @@ pulumi config set --secret digitalocean:token
 Set the InfluxDB token using:
 
 ```shell
-pulumi config set --secret influx-token
+pulumi config set --secret heart:influx-token
 ```
 
 Configure the project to use on Digital Ocean:
@@ -102,7 +102,6 @@ Everything lives under `/var/lib/holochain/`:
 | `lair/` | Lair keystore data |
 | `lair-passphrase` | Passphrase used to unlock the lair keystore (mode 600). Needed if you ever have to inspect the keystore directly. |
 | `agent-pub-key` | The node's agent public key as base64url. **This is the key you need when installing an app** — pass it as `--agent-key` to `hc sandbox call`. |
-| `.registered` | Flag file written on successful registration. Its presence prevents re-registration across reboots. |
 
 ### Services
 
@@ -111,7 +110,7 @@ Everything lives under `/var/lib/holochain/`:
 | `telegraf.service` | Collects host metrics (CPU, memory, disk, network) and ships to InfluxDB |
 | `lair-keystore.service` | Lair keystore daemon |
 | `holochain.service` | Holochain conductor daemon (also ships Holochain metrics directly to InfluxDB) |
-| `holochain-register.service` | One-shot registration service — runs once after first boot, polls until an admin approves the node on the auth server |
+| `holochain-register.service` | Registration service — runs on every boot to register the node and refresh auth credentials. On first boot it polls until an admin approves the key; on subsequent boots it refreshes credentials directly. |
 
 ### Installing an app
 

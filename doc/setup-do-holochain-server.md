@@ -1,124 +1,21 @@
 # Setup Server
 
-> **Note:** For a complete step-by-step guide including agent setup and app installation, see [Setup an Always-On Node](./setup-always-on-node.md). This document provides technical details for the server deployment only.
+> **Note:** For a complete step-by-step guide including agent setup and app installation, see [Setup an Always-On Node](./setup-always-on-node.md).
 
-## Deployment
+Nodes are deployed to DigitalOcean using Pulumi. See the [README](../README.md#pulumi-setup) for configuration options and the [Always-On Node guide](./setup-always-on-node.md) for deployment steps.
 
-### Prerequisites
+## What Gets Provisioned
 
-- [Terraform](https://www.terraform.io/) (v1.0.0+)
-- [DigitalOcean Account](https://www.digitalocean.com/)
-- DigitalOcean API Token
-- SSH key added to DigitalOcean
+Each droplet is an Ubuntu 22.04 server provisioned via cloud-init (`cloudinit/default/cloud-config.yaml`). Cloud-init installs and configures:
 
-Here are the deployment steps:
+- Holochain conductor and Lair Keystore (specific versions baked into the cloud-config)
+- `hc` CLI tool
+- `holo-keyutil` for key operations during registration
+- Telegraf for host metrics (CPU, memory, disk, network → InfluxDB)
+- Systemd services: `lair-keystore`, `holochain`, `holochain-register`, `telegraf`
 
-#### Prerequisites Setup
+## Updating the Cloud-Config
 
-```bash
-# Install Terraform
-wget -O- https://apt.releases.hashicorp.com/gpg | \
-    gpg --dearmor | \
-    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+The cloud-config is a Go template at `cloudinit/default/cloud-config.yaml`. It is rendered by Pulumi at deploy time with secrets (e.g. InfluxDB token) injected from Pulumi config.
 
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-    https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
-    sudo tee /etc/apt/sources.list.d/hashicorp.list
-
-sudo apt-get update && sudo apt-get install terraform
-
-# Generate SSH key if you don't have one
-ssh-keygen -t rsa -b 4096
-```
-
-#### Environment Setup
-
-```bash
-  # Copy example env file
-  cp .env.example .env
-
-  # Edit with your values
-  nano .env
-
-  # Load environment variables
-  source .env
-```
-
-#### DigitalOcean Setup
-
-- Create a DigitalOcean account
-- Generate an API token in the DigitalOcean dashboard
-- Add your SSH key to DigitalOcean and get either the SSH key ID or fingerprint:
-
-  Option 1: Using Web Interface
-
-```bash
-  1. Go to Settings -> Security -> SSH Keys
-  2. You can use either:
-     - The SSH key ID from the URL: https://cloud.digitalocean.com/account/security?i=XXXXX
-     - The fingerprint shown directly in the SSH key list
-```
-
-Option 2: Using doctl CLI
-
-```bash
-# Install doctl
-sudo snap install doctl
-# or
-brew install doctl  # for MacOS
-
-# Authenticate with your API token
-doctl auth init
-
-# List SSH keys with their IDs and fingerprints
-doctl compute ssh-key list
-```
-
-Option 3: Get fingerprint locally
-
-```bash
-# For RSA keys
-ssh-keygen -E md5 -lf ~/.ssh/id_rsa.pub | awk '{print $2}' | cut -d':' -f2-
-
-# For ED25519 keys
-ssh-keygen -E md5 -lf ~/.ssh/id_ed25519.pub | awk '{print $2}' | cut -d':' -f2-
-```
-
-#### Deploy
-
-```bash
-  # Initialize Terraform
-  cd terraform
-  terraform init
-
-  make deploy
-```
-
-#### Redeploy
-
-```bash
-  make redeploy
-```
-
-#### Post-Deployment
-
-```bash
-  # SSH into your node
-  ssh root@$(terraform output -raw droplet_ip)
-
-  # Check services
-  systemctl status holochain
-  systemctl status lair-keystore
-
-  # View logs
-  journalctl -u holochain
-  journalctl -u lair-keystore
-```
-
-#### Cleanup (when needed)
-
-```bash
-  terraform destroy \
-    -var="do_token=${DO_TOKEN}" \
-    -var="ssh_key_id=${SSH_KEY_ID}"
-```
+To update the Holochain or Lair version, or change any provisioning behaviour, edit that file and run `pulumi up`.
