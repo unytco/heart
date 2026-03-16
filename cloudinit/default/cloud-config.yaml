@@ -14,7 +14,7 @@ write_files:
       [agent]
         interval = "30s"
         flush_interval = "30s"
-        hostname = "$HOSTNAME"
+        hostname = ""
 
       [[outputs.influxdb_v2]]
         urls = ["https://us-east-1-1.aws.cloud2.influxdata.com"]
