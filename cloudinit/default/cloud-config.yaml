@@ -53,7 +53,7 @@ write_files:
       admin_interfaces:
         - driver:
             type: websocket
-            port: 8000
+            port: 8800
             danger_bind_addr: ~
             allowed_origins: "*"
       network:
@@ -171,7 +171,7 @@ write_files:
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
-      ADMIN_PORT=8000
+      ADMIN_PORT=8800
       AUTH_SERVER=https://hc-auth-iroh-unyt.holochain.org
 
       LAIR_URL=$(/usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" url)

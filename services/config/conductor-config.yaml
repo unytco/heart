@@ -7,7 +7,7 @@ keystore:
 admin_interfaces:
   - driver:
       type: websocket
-      port: 8000
+      port: 8800
       danger_bind_addr: ~
       allowed_origins: "*"
 network:

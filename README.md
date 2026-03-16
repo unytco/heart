@@ -118,7 +118,7 @@ Once the node is registered (check `systemctl status holochain-register.service`
 
 ```shell
 AGENT_KEY=$(cat /var/lib/holochain/agent-pub-key)
-hc sandbox call --running 8000 install-app \
+hc sandbox call --running 8800 install-app \
     --app-id "your-app-id" \
     --agent-key "${AGENT_KEY}" \
     /path/to/your-app.happ

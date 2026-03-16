@@ -90,7 +90,7 @@ Generate an additional key directly in the Lair keystore on your node:
 ```bash
 ssh root@YOUR_DROPLET_IP
 
-hc sandbox call --running 8000 new-agent
+hc sandbox call --running 8800 new-agent
 ```
 
 Output example:
@@ -151,7 +151,7 @@ curl -L -o /var/lib/holochain/apps/your-app.happ https://your-app-url.com/your-a
 
 ```bash
 AGENT_KEY=$(cat /var/lib/holochain/agent-pub-key)
-hc sandbox call --running 8000 install-app \
+hc sandbox call --running 8800 install-app \
   --app-id "your-app-id" \
   --agent-key "${AGENT_KEY}" \
   /var/lib/holochain/apps/your-app.happ
@@ -160,7 +160,7 @@ hc sandbox call --running 8000 install-app \
 #### If you used Option 2 or 3 (Pre-existing key):
 
 ```bash
-hc sandbox call --running 8000 install-app \
+hc sandbox call --running 8800 install-app \
   --app-id "your-app-id" \
   --agent-key uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm \
   /var/lib/holochain/apps/your-app.happ
@@ -170,10 +170,10 @@ hc sandbox call --running 8000 install-app \
 
 ```bash
 # List installed apps
-hc sandbox call --running 8000 list-apps
+hc sandbox call --running 8800 list-apps
 
 # Enable the app if needed
-hc sandbox call --running 8000 enable-app --app-id "your-app-id"
+hc sandbox call --running 8800 enable-app --app-id "your-app-id"
 ```
 
 ## Post-Installation
@@ -213,10 +213,10 @@ journalctl -u lair-keystore --no-pager -l
 
 ```bash
 # Test admin interface
-hc sandbox call --running 8000 list-apps
+hc sandbox call --running 8800 list-apps
 
 # Check if ports are open
-ss -tlnp | grep 8000
+ss -tlnp | grep 8800
 ```
 
 ### Registration Issues
