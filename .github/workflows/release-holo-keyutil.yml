@@ -1,0 +1,29 @@
+name: Release holo-keyutil
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: holo-keyutil
+
+      - name: Build
+        run: cargo build --release
+        working-directory: holo-keyutil
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: holo-keyutil/target/release/holo-keyutil

@@ -1,0 +1,7 @@
+name: heart
+description: HEART
+runtime: go
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: digitalocean-go
