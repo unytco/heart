@@ -82,7 +82,7 @@ write_files:
       set -eo pipefail
 
       HOLOCHAIN_VERSION="holochain-0.6.1-rc.4"
-      HOLO_KEYUTIL_VERSION="v0.1.0-test.2"
+      HOLO_KEYUTIL_VERSION="v0.1.0"
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
@@ -161,8 +161,8 @@ write_files:
   # /request-auth, then polls /authenticate until an admin approves the key.
   # On all subsequent runs: the agent key already exists so the Holochain port
   # wait is skipped and fresh credentials are generated directly from lair.
-  # This also breaks the deadlock where stale base64_auth_material causes
-  # Holochain to crash before it can open its admin port.
+  # This also breaks the deadlock where stale base64_auth_material_bootstrap or
+  # base64_auth_material_relay causes Holochain to crash before it can open its admin port.
   - path: /usr/local/bin/holochain-register
     permissions: '0755'
     owner: root:root
@@ -254,9 +254,9 @@ write_files:
       done
 
       echo "Updating conductor config with auth material..."
-      # base64_auth_material must be the bytes that Holochain will PUT to /authenticate
-      # on the auth server to obtain a fresh bearer token. The server accepts the same
-      # JSON body we used above: {"pubKey": "...", "payload": "...", "signature": "..."}.
+      # base64_auth_material_bootstrap and base64_auth_material_relay must be the bytes that 
+      # Holochain will PUT to /authenticate on the auth server to obtain a fresh bearer token. 
+      # The server accepts the same JSON body we used above: {"pubKey": "...", "payload": "...", "signature": "..."}.
       # Use a pattern that overwrites any existing value so stale credentials are
       # always replaced with the freshly-generated ones.
       AUTH_BODY="{\"pubKey\": \"${AGENT_PUBKEY_B64}\", \"payload\": \"${PAYLOAD_B64}\", \"signature\": \"${SIG}\"}"
