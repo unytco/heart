@@ -136,7 +136,7 @@ func main() {
 				Tags:       pulumi.StringArray{pulumi.String("blockchain-bridging")},
 				SshKeys:    pulumi.ToStringArray(sshFingerprints),
 				Monitoring: pulumi.Bool(true),
-				Backups:    pulumi.Bool(false),
+				Backups:    pulumi.Bool(true),
 				UserData:   pulumi.String(defaultCloudInit),
 			}, pulumi.IgnoreChanges([]string{"sshKeys", "userData"}))
 			if err != nil {
@@ -174,7 +174,7 @@ func main() {
 				Tags:       pulumi.StringArray{pulumi.String("unyt-bridging")},
 				SshKeys:    pulumi.ToStringArray(sshFingerprints),
 				Monitoring: pulumi.Bool(true),
-				Backups:    pulumi.Bool(false),
+				Backups:    pulumi.Bool(true),
 				UserData:   pulumi.String(defaultCloudInit),
 			}, pulumi.IgnoreChanges([]string{"sshKeys", "userData"}))
 			if err != nil {
@@ -184,12 +184,14 @@ func main() {
 		}
 
 		allDropletURNs := append(alwaysOnlineURNs, append(blockchainBridgingURNs, unytBridgingURNs...)...)
-		_, err = digitalocean.NewProjectResources(ctx, "heart-project-resources", &digitalocean.ProjectResourcesArgs{
-			Project:   pulumi.String(project.Id),
-			Resources: allDropletURNs,
-		})
-		if err != nil {
-			return err
+		if len(allDropletURNs) > 0 {
+			_, err = digitalocean.NewProjectResources(ctx, "heart-project-resources", &digitalocean.ProjectResourcesArgs{
+				Project:   pulumi.String(project.Id),
+				Resources: allDropletURNs,
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil

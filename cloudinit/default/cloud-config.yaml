@@ -58,7 +58,6 @@ write_files:
             danger_bind_addr: ~
             allowed_origins: "*"
       network:
-        type: NetworkConfig
         base64_auth_material_bootstrap: ~
         base64_auth_material_relay: ~
         bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
@@ -86,6 +85,13 @@ write_files:
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
+
+      # On some DigitalOcean images the machine-id subdirectory under
+      # /run/log/journal is not created, so journald has nowhere to write
+      # and `journalctl` shows "No journal files were found".
+      echo "==> Fixing journald runtime directory..."
+      systemd-tmpfiles --create --prefix /run/log/journal
+      systemctl restart systemd-journald
 
       echo "==> Installing Telegraf..."
       if [ ! -f /etc/apt/keyrings/influxdata-archive.gpg ]; then
