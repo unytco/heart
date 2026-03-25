@@ -12,7 +12,8 @@ admin_interfaces:
       allowed_origins: "*"
 network:
   type: NetworkConfig
-  base64_auth_material: ~ # Will be filled by setup script
+  base64_auth_material_bootstrap: ~ # Will be filled by setup script
+  base64_auth_material_relay: ~ # Will be filled by setup script
   bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
   signal_url: http://not-used:1234
   relay_url: https://hc-auth-iroh-unyt.holochain.org/

@@ -38,8 +38,9 @@ write_files:
       [[inputs.system]]
 
   # Conductor config. The lair connection_url is patched at first boot after lair is
-  # initialised (see holochain-first-boot). base64_auth_material is patched by
-  # holochain-register.service once an admin approves the node on the auth server.
+  # initialised (see holochain-first-boot). base64_auth_material_bootstrap and
+  # base64_auth_material_relay are patched by holochain-register.service once an
+  # admin approves the node on the auth server.
   - path: /etc/holochain/conductor-config.yaml
     permissions: '0640'
     owner: root:root
@@ -58,7 +59,8 @@ write_files:
             allowed_origins: "*"
       network:
         type: NetworkConfig
-        base64_auth_material: ~
+        base64_auth_material_bootstrap: ~
+        base64_auth_material_relay: ~
         bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
         signal_url: http://not-used:1234
         relay_url: https://hc-auth-iroh-unyt.holochain.org/
@@ -79,7 +81,7 @@ write_files:
       #!/usr/bin/env bash
       set -eo pipefail
 
-      HOLOCHAIN_VERSION="holochain-0.6.1-rc.3"
+      HOLOCHAIN_VERSION="holochain-0.6.1-rc.4"
       HOLO_KEYUTIL_VERSION="v0.1.0-test.2"
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
@@ -259,7 +261,8 @@ write_files:
       # always replaced with the freshly-generated ones.
       AUTH_BODY="{\"pubKey\": \"${AGENT_PUBKEY_B64}\", \"payload\": \"${PAYLOAD_B64}\", \"signature\": \"${SIG}\"}"
       AUTH_MATERIAL_B64=$(printf '%s' "${AUTH_BODY}" | base64 -w 0)
-      sed -i "s|base64_auth_material:.*|base64_auth_material: \"${AUTH_MATERIAL_B64}\"|" "${CONFIG_FILE}"
+      sed -i "s|base64_auth_material_bootstrap:.*|base64_auth_material_bootstrap: \"${AUTH_MATERIAL_B64}\"|" "${CONFIG_FILE}"
+      sed -i "s|base64_auth_material_relay:.*|base64_auth_material_relay: \"${AUTH_MATERIAL_B64}\"|" "${CONFIG_FILE}"
 
       systemctl restart holochain.service
 
