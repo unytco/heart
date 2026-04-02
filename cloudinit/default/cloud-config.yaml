@@ -8,7 +8,7 @@ packages:
 
 write_files:
   - path: /etc/telegraf/telegraf.conf
-    permissions: '0640'
+    permissions: "0640"
     owner: root:root
     content: |
       [agent]
@@ -42,7 +42,7 @@ write_files:
   # base64_auth_material_relay are patched by holochain-register.service once an
   # admin approves the node on the auth server.
   - path: /etc/holochain/conductor-config.yaml
-    permissions: '0640'
+    permissions: "0640"
     owner: root:root
     content: |
       ---
@@ -62,7 +62,7 @@ write_files:
         base64_auth_material_relay: ~
         bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
         signal_url: http://not-used:1234
-        relay_url: https://hc-auth-iroh-unyt.holochain.org/
+        relay_url: https://iroh-relay-unyt.holochain.org
         target_arc_factor: 1
         advanced: null
         request_timeout_s: 60
@@ -74,13 +74,13 @@ write_files:
   # connection URL, patches the conductor config, then enables and starts all services.
   # Runs once via runcmd; subsequent boots are handled entirely by systemd.
   - path: /usr/local/bin/holochain-first-boot
-    permissions: '0755'
+    permissions: "0755"
     owner: root:root
     content: |
       #!/usr/bin/env bash
       set -eo pipefail
 
-      HOLOCHAIN_VERSION="holochain-0.6.1-rc.4"
+      HOLOCHAIN_VERSION="holochain-0.6.1-rc.5"
       HOLO_KEYUTIL_VERSION="v0.1.0"
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
@@ -170,7 +170,7 @@ write_files:
   # This also breaks the deadlock where stale base64_auth_material_bootstrap or
   # base64_auth_material_relay causes Holochain to crash before it can open its admin port.
   - path: /usr/local/bin/holochain-register
-    permissions: '0755'
+    permissions: "0755"
     owner: root:root
     content: |
       #!/usr/bin/env bash
@@ -259,16 +259,16 @@ write_files:
           sleep 30
       done
 
-      echo "Updating conductor config with auth material..."
-      # base64_auth_material_bootstrap and base64_auth_material_relay must be the bytes that 
-      # Holochain will PUT to /authenticate on the auth server to obtain a fresh bearer token. 
+      echo "Updating conductor config with bootstrap auth material..."
+      # base64_auth_material_bootstrap must be the bytes that Holochain will PUT to
+      # /authenticate on the auth server to obtain a fresh bearer token.
       # The server accepts the same JSON body we used above: {"pubKey": "...", "payload": "...", "signature": "..."}.
-      # Use a pattern that overwrites any existing value so stale credentials are
-      # always replaced with the freshly-generated ones.
+      # Relay auth is intentionally left unset (relay_url points to the unauthenticated
+      # iroh-relay-unyt endpoint, not the hc-auth endpoint).
       AUTH_BODY="{\"pubKey\": \"${AGENT_PUBKEY_B64}\", \"payload\": \"${PAYLOAD_B64}\", \"signature\": \"${SIG}\"}"
       AUTH_MATERIAL_B64=$(printf '%s' "${AUTH_BODY}" | base64 -w 0)
       sed -i "s|base64_auth_material_bootstrap:.*|base64_auth_material_bootstrap: \"${AUTH_MATERIAL_B64}\"|" "${CONFIG_FILE}"
-      sed -i "s|base64_auth_material_relay:.*|base64_auth_material_relay: \"${AUTH_MATERIAL_B64}\"|" "${CONFIG_FILE}"
+      # sed -i "s|base64_auth_material_relay:.*|base64_auth_material_relay: \"${AUTH_MATERIAL_B64}\"|" "${CONFIG_FILE}"
 
       systemctl restart holochain.service
 

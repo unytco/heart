@@ -11,12 +11,11 @@ admin_interfaces:
       danger_bind_addr: ~
       allowed_origins: "*"
 network:
-  type: NetworkConfig
   base64_auth_material_bootstrap: ~ # Will be filled by setup script
   base64_auth_material_relay: ~ # Will be filled by setup script
   bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
   signal_url: http://not-used:1234
-  relay_url: https://hc-auth-iroh-unyt.holochain.org/
+  relay_url: https://iroh-relay-unyt.holochain.org
   target_arc_factor: 1
   advanced: null
   request_timeout_s: 60
