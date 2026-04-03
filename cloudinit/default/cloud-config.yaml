@@ -309,7 +309,7 @@ write_files:
       Type=simple
       User=root
       Group=root
-      Environment="RUST_LOG=holochain=info"
+      Environment="RUST_LOG=info"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL=1"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_HOST=https://us-east-1-1.aws.cloud2.influxdata.com"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_BUCKET=unyt"
