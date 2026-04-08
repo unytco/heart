@@ -100,7 +100,7 @@ func main() {
 					Hour:    pulumi.Int(8),
 				},
 				UserData: pulumi.String(defaultCloudInit),
-			}, pulumi.IgnoreChanges([]string{"sshKeys", "userData"}))
+			}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 			if err != nil {
 				return err
 			}
@@ -138,7 +138,7 @@ func main() {
 				Monitoring: pulumi.Bool(true),
 				Backups:    pulumi.Bool(true),
 				UserData:   pulumi.String(defaultCloudInit),
-			}, pulumi.IgnoreChanges([]string{"sshKeys", "userData"}))
+			}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 			if err != nil {
 				return err
 			}
@@ -176,7 +176,7 @@ func main() {
 				Monitoring: pulumi.Bool(true),
 				Backups:    pulumi.Bool(true),
 				UserData:   pulumi.String(defaultCloudInit),
-			}, pulumi.IgnoreChanges([]string{"sshKeys", "userData"}))
+			}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 			if err != nil {
 				return err
 			}
