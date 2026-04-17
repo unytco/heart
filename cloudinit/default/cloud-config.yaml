@@ -80,7 +80,7 @@ write_files:
       #!/usr/bin/env bash
       set -eo pipefail
 
-      HOLOCHAIN_VERSION="holochain-0.6.1-rc.7"
+      HOLOCHAIN_VERSION="holochain-0.6.1-rc.8"
       HOLO_KEYUTIL_VERSION="v0.1.0"
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
