@@ -8,3 +8,6 @@ config:
   heart:blockchain-bridging-count: "1"
   heart:unyt-bridging-count: "1"
   heart:heart-always-online-count: "4"
+  heart:heart-always-online-alt-count: "4"
+  heart:blockchain-bridging-alt-count: "1"
+  heart:unyt-bridging-alt-count: "1"

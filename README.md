@@ -65,9 +65,12 @@ pulumi config set project-name Holo
 Configure the number of nodes, of each type:
 
 ```shell
-pulumi config set heart:heart-always-online-count 2                                                                                                                                                                                               
+pulumi config set heart:heart-always-online-count 4                                                                                                                                                                                               
 pulumi config set heart:blockchain-bridging-count 1
 pulumi config set heart:unyt-bridging-count 1
+pulumi config set heart:heart-always-online-alt-count 4                                                                                                                                                                                               
+pulumi config set heart:blockchain-bridging-alt-count 1
+pulumi config set heart:unyt-bridging-alt-count 1
 ```
 
 ## Node layout
