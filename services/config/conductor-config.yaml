@@ -1,5 +1,11 @@
 ---
-tracing_override: ~
+# `tracing_override` uses the same syntax as `RUST_LOG` / tracing_subscriber's
+# EnvFilter. The DEBUG targets below are enabled to diagnose the
+# `execute_rave` hang tracked in the hot-2-mhot bridge (the conductor looks
+# healthy by every passive signal, so we need workflow-level traces the
+# next time a call stalls). Retune down to `~` / `info` once the root cause
+# is identified.
+tracing_override: "info,holochain::core::workflow=debug,holochain_cascade=debug,holochain_state=debug,transactor=debug"
 data_root_path: "/var/lib/holochain/data"
 keystore:
   type: lair_server
