@@ -6,11 +6,11 @@ edition = "2021"
 # lair_keystore_api version must be compatible with the lair-keystore binary
 # being run. Check lair-keystore's published Cargo.toml if you hit API errors.
 [dependencies]
-lair_keystore_api = "0.6"
+lair_keystore_api = "=0.6.3"
 sodoken = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 base64 = "0.22"
 url = "2"
 anyhow = "1"
-holo_hash = "0.6"
+holo_hash = "0.6.1"
 clap = { version = "4", features = ["derive"] }
