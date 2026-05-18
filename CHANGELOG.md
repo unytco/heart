@@ -10,3 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `domino_cli` crate.
+
+### Changed
+
+- bump cloud-init HOLOCHAIN_VERSION and holo-keyutil deps to Holochain 0.6.1
