@@ -128,12 +128,17 @@ write_files:
 
       HOLOCHAIN_VERSION="holochain-0.6.1"
       HOLO_KEYUTIL_VERSION="v0.1.0"
-      # The hc-http-gw binary release URL is gated on the upstream PR. Until it
-      # lands, the download below will 404 and the systemd unit will
-      # refuse to start; the rest of the droplet remains fully
-      # functional (conductor + cloudflared come up regardless), so the
-      # rollout is forward-compatible with no rerun once binaries
-      # appear.
+      # Upstream holochain/hc-http-gw doesn't ship binary assets with
+      # its tags (every release has `"assets": []` — verified May 2026),
+      # so heart mirrors them via the `release-hc-http-gw.yml`
+      # workflow. The URL below points at heart's release named
+      # `hc-http-gw-${HC_HTTP_GW_VERSION}`. To bump the version:
+      #   1. `gh workflow run release-hc-http-gw.yml -f upstream_tag=v0.X.Y`
+      #   2. wait for the heart release to appear
+      #   3. bump HC_HTTP_GW_VERSION below
+      #   4. `./scripts/sync-cloud-configs.sh` (mirror to alt)
+      # See doc/upstream-hc-http-gw-release-todo.md for the upstream PR
+      # that will eventually deprecate this mirror.
       HC_HTTP_GW_VERSION="v0.3.2"
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
@@ -199,22 +204,23 @@ write_files:
           chmod 755 "/usr/local/bin/holo-keyutil"
       fi
 
-      # hc-http-gw is downloaded from the upstream Holochain release; the
-      # URL is pinned in HC_HTTP_GW_VERSION above. If the asset is
-      # missing (upstream release pipeline not yet shipped, the curl returns
-      # non-zero and we leave the binary absent. The systemd unit below
-      # is enabled but won't start until the binary exists, so the rest
-      # of cloud-init still succeeds.
+      # hc-http-gw is downloaded from heart's mirror release (the
+      # upstream release pipeline doesn't attach binaries — see the
+      # comment near HC_HTTP_GW_VERSION above). The systemd unit below
+      # is ConditionPathExists=-gated on the binary, so if the download
+      # fails (network blip, mirror release missing for the requested
+      # version) the rest of cloud-init still succeeds and the gateway
+      # service stays inactive until an operator drops the binary in.
       echo "==> Downloading hc-http-gw (${HC_HTTP_GW_VERSION})..."
       if [ -f "/usr/local/bin/hc-http-gw" ]; then
           echo "    hc-http-gw already present, skipping"
       else
           if curl -fsSL \
                   -o "/usr/local/bin/hc-http-gw" \
-                  "https://github.com/holochain/hc-http-gw/releases/download/${HC_HTTP_GW_VERSION}/hc-http-gw-x86_64-unknown-linux-gnu"; then
+                  "https://github.com/unytco/heart/releases/download/hc-http-gw-${HC_HTTP_GW_VERSION}/hc-http-gw-x86_64-unknown-linux-gnu"; then
               chmod 755 "/usr/local/bin/hc-http-gw"
           else
-              echo "    WARN: hc-http-gw binary not found upstream yet; gateway disabled" >&2
+              echo "    WARN: hc-http-gw mirror release missing for ${HC_HTTP_GW_VERSION}; gateway disabled. Trigger the release-hc-http-gw workflow and re-run cloud-init." >&2
               rm -f /usr/local/bin/hc-http-gw
           fi
       fi

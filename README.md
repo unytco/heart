@@ -91,7 +91,7 @@ The tunnel + ingress + DNS are then Pulumi-managed; every
 same tunnel id and Cloudflare load-balances across healthy replicas.
 See [Cloudflare Tunnel Cutover](./doc/tunnel-cutover.md) for the staged
 migration from the laptop-hosted legacy tunnel to the Pulumi
-fresh-provisioned `unyt-gateway` tunnel — including how to roll out
+fresh-provisioned `unyt-tunnel` tunnel — including how to roll out
 droplet connectors before flipping the proxy worker's upstream URL,
 and the legacy-tunnel retirement steps once the new path is verified.
 
@@ -147,7 +147,7 @@ Everything lives under `/var/lib/holochain/`:
 | `lair-keystore.service` | Lair keystore daemon |
 | `holochain.service` | Holochain conductor daemon (also ships Holochain metrics directly to InfluxDB) |
 | `holochain-register.service` | Registration service — runs on every boot to register the node and refresh auth credentials. On first boot it polls until an admin approves the key; on subsequent boots it refreshes credentials directly. |
-| `cloudflared.service` | Cloudflare tunnel connector for `unyt-gateway.unyt.co`. Started automatically; runs as a `DynamicUser` with the token loaded via `systemd-creds`. |
+| `cloudflared.service` | Cloudflare tunnel connector for `unyt-tunnel.unyt.co`. Started automatically; runs as a `DynamicUser` with the token loaded via `systemd-creds`. |
 | `hc-http-gw.service` | Holochain HTTP gateway, listens on `127.0.0.1:8090`. **Not started at boot** — `/etc/hc-http-gw/env` ships with no app ids allowlisted; the operator runs `hc-http-gw-configure --app-id <id>` after installing the `.happ`, which writes the env file and starts the service. |
 
 ### Installing an app

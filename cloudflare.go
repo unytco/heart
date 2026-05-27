@@ -39,17 +39,34 @@ type cloudflareTunnelOutputs struct {
 // rewrite. Droplets carry exactly one Cloudflare-touching secret on
 // disk (the token), nothing else.
 func provisionCloudflareTunnel(ctx *pulumi.Context) (*cloudflareTunnelOutputs, error) {
+	// Pulumi-managed Cloudflare tunnel is opt-in. When `heart:cf-account-id`
+	// is unset, we skip every CF resource and return zero values for the
+	// cloud-init template (CloudflareToken="", GatewayHostname=""). This
+	// is the hybrid-management path: the CF tunnel lives in the CF
+	// dashboard, operators install cloudflared per-droplet with the token
+	// from the dashboard's "Install connector" wizard, and Pulumi only
+	// owns droplets / project membership / firewall. To flip back to
+	// Pulumi-owned tunnel, set all of:
+	//   heart:cf-account-id, heart:cf-zone-name, heart:gw-hostname,
+	//   heart:cloudflare-tunnel-secret, cloudflare:apiToken
+	// and re-run `pulumi up`.
 	accountID, ok := ctx.GetConfig("heart:cf-account-id")
 	if !ok {
-		return nil, fmt.Errorf("required config 'heart:cf-account-id' not set")
+		if err := ctx.Log.Info("heart:cf-account-id not set; skipping Pulumi-managed Cloudflare tunnel (hybrid mode — manage tunnel via CF dashboard)", nil); err != nil {
+			return nil, err
+		}
+		return &cloudflareTunnelOutputs{
+			Token:    pulumi.String("").ToStringOutput(),
+			Hostname: "",
+		}, nil
 	}
 	zoneName, ok := ctx.GetConfig("heart:cf-zone-name")
 	if !ok {
-		return nil, fmt.Errorf("required config 'heart:cf-zone-name' not set")
+		return nil, fmt.Errorf("heart:cf-account-id is set but heart:cf-zone-name is not — set both to enable Pulumi-managed tunnel, or unset cf-account-id for hybrid mode")
 	}
 	hostname, ok := ctx.GetConfig("heart:gw-hostname")
 	if !ok {
-		return nil, fmt.Errorf("required config 'heart:gw-hostname' not set")
+		return nil, fmt.Errorf("heart:cf-account-id is set but heart:gw-hostname is not — set both to enable Pulumi-managed tunnel, or unset cf-account-id for hybrid mode")
 	}
 	// TunnelSecret must be a base64 string of at least 32 bytes; the
 	// connector token Cloudflare hands out is derived from it. Operators
@@ -71,9 +88,9 @@ func provisionCloudflareTunnel(ctx *pulumi.Context) (*cloudflareTunnelOutputs, e
 	}
 	zoneID := zone.Results[0].Id
 
-	tunnel, err := cloudflare.NewZeroTrustTunnelCloudflared(ctx, "unyt-gateway", &cloudflare.ZeroTrustTunnelCloudflaredArgs{
+	tunnel, err := cloudflare.NewZeroTrustTunnelCloudflared(ctx, "unyt-tunnel", &cloudflare.ZeroTrustTunnelCloudflaredArgs{
 		AccountId:    pulumi.String(accountID),
-		Name:         pulumi.String("unyt-gateway"),
+		Name:         pulumi.String("unyt-tunnel"),
 		ConfigSrc:    pulumi.String("cloudflare"),
 		TunnelSecret: pulumi.String(tunnelSecret),
 	})
@@ -84,7 +101,7 @@ func provisionCloudflareTunnel(ctx *pulumi.Context) (*cloudflareTunnelOutputs, e
 	// Single named-hostname ingress. Cloudflare implicitly adds a
 	// catch-all (http_status:404) rule at the end; explicit catch-all is
 	// only required for `local` config sources.
-	_, err = cloudflare.NewZeroTrustTunnelCloudflaredConfig(ctx, "unyt-gateway-ingress", &cloudflare.ZeroTrustTunnelCloudflaredConfigArgs{
+	_, err = cloudflare.NewZeroTrustTunnelCloudflaredConfig(ctx, "unyt-tunnel-ingress", &cloudflare.ZeroTrustTunnelCloudflaredConfigArgs{
 		AccountId: pulumi.String(accountID),
 		TunnelId:  tunnel.ID().ToStringOutput(),
 		Config: &cloudflare.ZeroTrustTunnelCloudflaredConfigConfigArgs{
@@ -107,14 +124,14 @@ func provisionCloudflareTunnel(ctx *pulumi.Context) (*cloudflareTunnelOutputs, e
 	cnameContent := tunnel.ID().ToStringOutput().ApplyT(func(id string) string {
 		return fmt.Sprintf("%s.cfargotunnel.com", id)
 	}).(pulumi.StringOutput)
-	_, err = cloudflare.NewDnsRecord(ctx, "unyt-gateway-dns", &cloudflare.DnsRecordArgs{
+	_, err = cloudflare.NewDnsRecord(ctx, "unyt-tunnel-dns", &cloudflare.DnsRecordArgs{
 		ZoneId:  pulumi.String(zoneID),
 		Name:    pulumi.String(hostname),
 		Type:    pulumi.String("CNAME"),
 		Content: cnameContent,
 		Proxied: pulumi.Bool(true),
 		Ttl:     pulumi.Float64(1), // 1 = "Auto"; required for proxied records.
-		Comment: pulumi.String("Managed by heart Pulumi program (unyt-gateway tunnel)"),
+		Comment: pulumi.String("Managed by heart Pulumi program (unyt-tunnel tunnel)"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DNS record: %w", err)

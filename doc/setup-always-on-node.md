@@ -288,5 +288,5 @@ curl -i http://127.0.0.1:8090/health       # bypasses tunnel entirely
 
 - [Setup Progenitor](./setup-progenitor.md) — Setting up progenitor nodes specifically
 - [Install Agents](./install-agents.md) — Additional agent installation examples
-- [Cloudflare Tunnel Cutover](./tunnel-cutover.md) — Staged cutover from the legacy laptop-hosted tuunnel to the Pulumi-managed `unyt-gateway` tunnel
+- [Cloudflare Tunnel Cutover](./tunnel-cutover.md) — Staged cutover from the legacy laptop-hosted tuunnel to the Pulumi-managed `unyt-tunnel` tunnel
 - [Upstream `hc-http-gw` Release TODO](./upstream-hc-http-gw-release-todo.md) — Spec for the upstream binary release PR

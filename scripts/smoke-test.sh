@@ -17,8 +17,8 @@
 #       Health + zome-call shape probe.
 #
 # Examples:
-#   ./scripts/smoke-test.sh unyt-gateway.unyt.co
-#   ./scripts/smoke-test.sh unyt-gateway.unyt.co \
+#   ./scripts/smoke-test.sh unyt-tunnel.unyt.co
+#   ./scripts/smoke-test.sh unyt-tunnel.unyt.co \
 #       uhC0kd6W3cCdJqFSe0SoQN8lr3iwLmGPNkdWWKZlyciLM1bEHpOif \
 #       unyt-sandbox-holo-hosting-0.90 \
 #       transactor/get_global_units_details

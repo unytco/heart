@@ -1,0 +1,104 @@
+name: Release hc-http-gw (mirror upstream)
+
+# Upstream holochain/hc-http-gw publishes tags but no binary assets
+# (verified May 2026: every v0.1.0…v0.4.0-dev.1 release has
+# `"assets": []`). Heart's cloud-init wants a `<binary>-<target-triple>`
+# URL, so we mirror upstream builds here until upstream ships their
+# own. See doc/upstream-hc-http-gw-release-todo.md for the eventual
+# upstream PR plan that will retire this mirror.
+#
+# Triggered manually: pick an upstream tag and let this workflow build
+# the x86_64-linux binary, then attach it (plus a SHA-256 sum) to a
+# heart release tagged `hc-http-gw-<upstream-tag>`. Cloud-init's
+# HC_HTTP_GW_VERSION env var lines up with `<upstream-tag>` so the
+# download URL is deterministic.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_tag:
+        description: 'Upstream holochain/hc-http-gw tag to mirror (e.g. v0.3.2). The heart release will be tagged hc-http-gw-<this>.'
+        required: true
+        type: string
+
+jobs:
+  build:
+    # ubuntu-22.04 (glibc 2.35) is intentionally older than the droplet
+    # base (ubuntu-24.04 / glibc 2.39). Binaries built on 22.04 run on
+    # both; the reverse is not true. Keeps downstream compatibility
+    # broad if a future operator deploys to a 22.04 droplet pool.
+    runs-on: ubuntu-22.04
+    permissions:
+      # Required so softprops/action-gh-release can create / update the
+      # heart release. No other write scopes needed.
+      contents: write
+    steps:
+      - name: Checkout upstream hc-http-gw at requested tag
+        uses: actions/checkout@v4
+        with:
+          repository: holochain/hc-http-gw
+          ref: ${{ inputs.upstream_tag }}
+
+      - name: Install Rust toolchain (honours upstream rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+        # dtolnay/rust-toolchain reads `rust-toolchain.toml` when the
+        # `toolchain:` input is omitted. Upstream pins to 1.88.0 with
+        # the wasm32-unknown-unknown target; we don't override.
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build hc-http-gw (release)
+        run: cargo build --release --bin hc-http-gw
+
+      - name: Stage artifact + checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          src=target/release/hc-http-gw
+          dest=out/hc-http-gw-x86_64-unknown-linux-gnu
+          cp "$src" "$dest"
+          (cd out && sha256sum hc-http-gw-x86_64-unknown-linux-gnu > hc-http-gw-x86_64-unknown-linux-gnu.sha256)
+          ls -lh out
+          file "$dest"
+
+      - name: Create / update heart release for this upstream tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: hc-http-gw-${{ inputs.upstream_tag }}
+          name: hc-http-gw ${{ inputs.upstream_tag }} (mirrored upstream binary)
+          body: |
+            **Mirror release.** Heart-built mirror of
+            [holochain/hc-http-gw ${{ inputs.upstream_tag }}](https://github.com/holochain/hc-http-gw/releases/tag/${{ inputs.upstream_tag }}).
+
+            Upstream does not currently ship binary assets with its tags
+            (every release has `"assets": []`), so heart builds and
+            republishes them here. See
+            [`doc/upstream-hc-http-gw-release-todo.md`](https://github.com/unytco/heart/blob/main/doc/upstream-hc-http-gw-release-todo.md)
+            for the upstream PR plan that will eventually deprecate
+            this mirror.
+
+            ## Source provenance
+
+            - Upstream repo: `holochain/hc-http-gw`
+            - Upstream tag: `${{ inputs.upstream_tag }}`
+            - Built on: `ubuntu-22.04` (glibc 2.35 — runs on 22.04+ droplets)
+            - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ## Artifacts
+
+            - `hc-http-gw-x86_64-unknown-linux-gnu` — release binary, x86_64 Linux.
+            - `hc-http-gw-x86_64-unknown-linux-gnu.sha256` — SHA-256 of the binary.
+
+            ## Verification
+
+            ```bash
+            curl -fsSL -O https://github.com/unytco/heart/releases/download/hc-http-gw-${{ inputs.upstream_tag }}/hc-http-gw-x86_64-unknown-linux-gnu
+            curl -fsSL -O https://github.com/unytco/heart/releases/download/hc-http-gw-${{ inputs.upstream_tag }}/hc-http-gw-x86_64-unknown-linux-gnu.sha256
+            sha256sum -c hc-http-gw-x86_64-unknown-linux-gnu.sha256
+            ```
+          files: |
+            out/hc-http-gw-x86_64-unknown-linux-gnu
+            out/hc-http-gw-x86_64-unknown-linux-gnu.sha256
+          fail_on_unmatched_files: true
