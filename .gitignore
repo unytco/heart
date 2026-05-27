@@ -21,6 +21,13 @@ test/
 # Binary
 bin/hi 
 
+# Compiled Pulumi entrypoint — Pulumi rebuilds the Go program on every
+# `pulumi up` / `pulumi preview`; checking the binary in will both
+# exceed GitHub's file-size limit (100 MB) and cause potential drift from source
+# on every rebuild. If you need a portable build artefact, ship a release
+# tarball, don't track the working-tree binary.
+/heart
+
 # NixOS
 result 
 

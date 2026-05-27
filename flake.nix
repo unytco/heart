@@ -38,6 +38,19 @@
               jq
               python315
               curl
+              # DigitalOcean CLI — used by operator runbooks to look up
+              # droplet IPs, manage SSH keys, and probe firewall state
+              # alongside `pulumi`. Keeping it in the devShell avoids a
+              # global `apt install` step in the deploy docs.
+              doctl
+              # cloudflared — already on PATH for many laptops via the
+              # apt repo, but pinning it through the devShell guarantees
+              # `cloudflared tunnel info`, `cloudflared tunnel route
+              # dns`, etc. resolve to a known-good version regardless
+              # of host-level install. Avoids the laptop's "your
+              # version is outdated" warning bleeding into operator
+              # output.
+              cloudflared
             ];
           };
         };

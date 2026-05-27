@@ -178,6 +178,38 @@ hc sandbox call --running 8800 enable-app --app-id "your-app-id"
 
 ## Post-Installation
 
+### Wire the App into `hc-http-gw`
+
+The explorer (and any other web2 caller) reaches your installed app via
+the per-droplet `hc-http-gw` and a shared Cloudflare tunnel. After
+`hc sandbox call install-app` succeeds:
+
+```bash
+# Tell hc-http-gw which app id(s) to expose, and which zome functions
+# to allow on each.
+hc-http-gw-configure --app-id "your-app-id" --allowed-fns '*'
+
+# Verify gateway -> conductor on the local loopback:
+curl -i http://127.0.0.1:8090/health
+# Expected: HTTP/1.1 200 OK, body "Ok"
+
+# Verify the full chain (browser -> CF worker -> tunnel -> hc-http-gw):
+source /etc/heart-fleet/metadata
+curl -i "https://${HEART_GATEWAY_HOSTNAME}/health"
+# Expected: HTTP/2 200 from a Cloudflare-fronted response.
+```
+
+`hc-http-gw-configure` is safe to re-run any time the installed app
+list changes — it rewrites `/etc/hc-http-gw/env` cleanly rather than
+appending, and the `--app-id` flag can be passed multiple times to
+expose more than one app from the same droplet.
+
+**Important**: the `hc-http-gw` binary may be absent from
+`/usr/local/bin` until the
+[upstream binary release](./upstream-hc-http-gw-release-todo.md) lands.
+The systemd unit is gated on `ConditionPathExists=/usr/local/bin/hc-http-gw`,
+so this is a non-fatal "service disabled" state, not a boot failure.
+
 ### Monitoring Your Node
 
 Host metrics (CPU, memory, disk, network) and Holochain metrics are shipped automatically to InfluxDB via Telegraf and the Holochain conductor respectively. Check service status with:
@@ -185,8 +217,11 @@ Host metrics (CPU, memory, disk, network) and Holochain metrics are shipped auto
 ```bash
 systemctl status telegraf
 systemctl status holochain
+systemctl status cloudflared
+systemctl status hc-http-gw
 journalctl -u holochain -f
 journalctl -u lair-keystore -f
+journalctl -u cloudflared -f
 ```
 
 ### Backup Important Data
@@ -229,7 +264,29 @@ journalctl -u holochain-register --no-pager -l
 systemctl start holochain-register
 ```
 
+### Tunnel + Gateway Issues
+
+```bash
+# Gateway is up but returns 403 for every zome call:
+#   You haven't run hc-http-gw-configure yet, or the --app-id passed
+#   doesn't match what's actually installed.
+hc sandbox call --running 8800 list-apps   # see the real ids
+cat /etc/hc-http-gw/env                    # see what gateway thinks
+
+# Tunnel hostname returns 502/523 from Cloudflare:
+#   cloudflared can't reach the local gateway, or the gateway is down.
+systemctl status cloudflared hc-http-gw
+journalctl -u cloudflared --no-pager -l | tail -50
+curl -i http://127.0.0.1:8090/health       # bypasses tunnel entirely
+
+# Tunnel hostname returns 530 / 1033 from Cloudflare:
+#   Cloudflare side: tunnel id not found / DNS not yet propagated.
+#   Wait for DNS, or check Pulumi state has the right tunnel id.
+```
+
 ## Related Documentation
 
 - [Setup Progenitor](./setup-progenitor.md) — Setting up progenitor nodes specifically
 - [Install Agents](./install-agents.md) — Additional agent installation examples
+- [Cloudflare Tunnel Cutover](./tunnel-cutover.md) — Staged cutover from the legacy laptop-hosted tuunnel to the Pulumi-managed `unyt-gateway` tunnel
+- [Upstream `hc-http-gw` Release TODO](./upstream-hc-http-gw-release-todo.md) — Spec for the upstream binary release PR

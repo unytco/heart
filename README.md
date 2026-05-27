@@ -25,6 +25,7 @@ HEART is a toolkit for quickly setting up and managing Holochain nodes. It provi
 - [Setup Progenitor](./doc/setup-progenitor.md) - Setting up progenitor nodes specifically
 - [Install Agents](./doc/install-agents.md) - Additional agent installation examples
 
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and testing instructions.
@@ -73,6 +74,35 @@ pulumi config set heart:blockchain-bridging-alt-count 1
 pulumi config set heart:unyt-bridging-alt-count 1
 ```
 
+Configure the Cloudflare tunnel that fronts the explorer's
+`hc-http-gw` on each droplet:
+
+```shell
+pulumi config set --secret cloudflare:apiToken <token>
+pulumi config set heart:cf-account-id <account_id>
+pulumi config set heart:cf-zone-name <zone>
+pulumi config set heart:gw-hostname <host>
+pulumi config set --secret heart:cloudflare-tunnel-secret \
+    "$(openssl rand -base64 32)"
+```
+
+The tunnel + ingress + DNS are then Pulumi-managed; every
+`heart-always-online` droplet runs a `cloudflared` replica with the
+same tunnel id and Cloudflare load-balances across healthy replicas.
+See [Cloudflare Tunnel Cutover](./doc/tunnel-cutover.md) for the staged
+migration from the laptop-hosted legacy tunnel to the Pulumi
+fresh-provisioned `unyt-gateway` tunnel — including how to roll out
+droplet connectors before flipping the proxy worker's upstream URL,
+and the legacy-tunnel retirement steps once the new path is verified.
+
+Optionally, restrict SSH inbound to a Pulumi-managed allowlist (the
+fleet-wide firewall is **skipped entirely** unless this is set, so
+nothing locks operators out by accident):
+
+```shell
+pulumi config set heart:operator-cidrs "203.0.113.7/32,198.51.100.0/24"
+```
+
 ## Node layout
 
 This section describes where things live on a provisioned droplet. Use it as a reference
@@ -88,6 +118,9 @@ All binaries are on `PATH` at `/usr/local/bin/`:
 | `lair-keystore` | Lair keystore |
 | `hc` | Holochain CLI — use this to install apps and manage the conductor |
 | `holo-keyutil` | Key utilities (`sign`, `extract-pubkey`) used during registration |
+| `hc-http-gw` | Holochain HTTP gateway, bound to `127.0.0.1:8090`. May be absent until the [upstream binary release](./doc/upstream-hc-http-gw-release-todo.md) lands; the systemd unit is `ConditionPathExists=`-gated so this is non-fatal. |
+| `hc-http-gw-configure` | Helper that writes `/etc/hc-http-gw/env` and restarts `hc-http-gw.service`. Run after installing an `.happ`. |
+| `cloudflared` (from apt) | Cloudflare tunnel connector. Authenticates against the shared tunnel id with a token in `/etc/cloudflared/token`. |
 
 ### Configuration
 
@@ -114,6 +147,8 @@ Everything lives under `/var/lib/holochain/`:
 | `lair-keystore.service` | Lair keystore daemon |
 | `holochain.service` | Holochain conductor daemon (also ships Holochain metrics directly to InfluxDB) |
 | `holochain-register.service` | Registration service — runs on every boot to register the node and refresh auth credentials. On first boot it polls until an admin approves the key; on subsequent boots it refreshes credentials directly. |
+| `cloudflared.service` | Cloudflare tunnel connector for `unyt-gateway.unyt.co`. Started automatically; runs as a `DynamicUser` with the token loaded via `systemd-creds`. |
+| `hc-http-gw.service` | Holochain HTTP gateway, listens on `127.0.0.1:8090`. **Not started at boot** — `/etc/hc-http-gw/env` ships with no app ids allowlisted; the operator runs `hc-http-gw-configure --app-id <id>` after installing the `.happ`, which writes the env file and starts the service. |
 
 ### Installing an app
 
@@ -126,6 +161,35 @@ hc sandbox call --running 8800 install-app \
     --agent-key "${AGENT_KEY}" \
     /path/to/your-app.happ
 ```
+
+Then point `hc-http-gw` at the installed app and start the service.
+`hc-http-gw-configure` is idempotent — re-running it with a new
+`--app-id` rewrites `/etc/hc-http-gw/env` and restarts the gateway:
+
+```shell
+hc-http-gw-configure --app-id your-app-id --allowed-fns '*'
+systemctl status hc-http-gw cloudflared
+
+# Local smoke test
+curl -i http://127.0.0.1:8090/health
+
+# End-to-end smoke test (from anywhere; routes worker -> tunnel -> droplet)
+source /etc/heart-fleet/metadata
+curl -i "https://${HEART_GATEWAY_HOSTNAME}/health"
+```
+
+The `--allowed-fns '*'` form opens every zome function on the app; per
+the [`hc-http-gw` spec](https://github.com/holochain/hc-http-gw/blob/main/spec.md),
+the recommended posture is an explicit comma-separated allowlist (e.g.
+`main/list_things,main/get_thing`). The helper takes either.
+
+**Note**: if `hc-http-gw` is missing on disk (because the
+[upstream binary release](./doc/upstream-hc-http-gw-release-todo.md)
+hasn't landed yet), `hc-http-gw-configure` will write the env file but
+warn that the service was not started. Once the upstream binary is
+shipped, an `apt-get install` + `systemctl start hc-http-gw` (or
+re-running the cloud-init download step inline) brings the gateway up
+on existing droplets.
 
 ## Cloud-init binaries
 

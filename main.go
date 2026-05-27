@@ -11,8 +11,45 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// cloudInitData is the value passed to text/template when rendering
+// cloud-config.yaml. CloudflareToken is the Pulumi-managed tunnel
+// connector token; cloudflared on the droplet authenticates against
+// the shared tunnel id with it. GatewayHostname is the public ingress
+// hostname (used in operator-facing log lines and the smoke-test
+// helper bundled into the droplet image).
 type cloudInitData struct {
-	InfluxToken string
+	InfluxToken     string
+	CloudflareToken string
+	GatewayHostname string
+}
+
+// renderCloudInit reads a cloud-config template from disk and produces
+// a pulumi.StringOutput suitable for the Droplet UserData field. The
+// CloudflareToken comes in as an Output because it's derived from the
+// ZeroTrustTunnelCloudflared resource we just created in this run; the
+// rest of the substitutions are plain strings from stack config.
+func renderCloudInit(templatePath, influxToken, gwHostname string, tunnelToken pulumi.StringOutput) (pulumi.StringOutput, error) {
+	cloudInitRaw, err := os.ReadFile(templatePath)
+	if err != nil {
+		return pulumi.StringOutput{}, fmt.Errorf("failed to read cloud-init config %q: %w", templatePath, err)
+	}
+	tmpl, err := template.New("cloud-init").Parse(string(cloudInitRaw))
+	if err != nil {
+		return pulumi.StringOutput{}, fmt.Errorf("failed to parse cloud-init template %q: %w", templatePath, err)
+	}
+
+	rendered := tunnelToken.ApplyT(func(token string) (string, error) {
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, cloudInitData{
+			InfluxToken:     influxToken,
+			CloudflareToken: token,
+			GatewayHostname: gwHostname,
+		}); err != nil {
+			return "", fmt.Errorf("failed to render cloud-init template %q: %w", templatePath, err)
+		}
+		return buf.String(), nil
+	}).(pulumi.StringOutput)
+	return rendered, nil
 }
 
 var regions = []digitalocean.Region{
@@ -36,12 +73,22 @@ func main() {
 			return err
 		}
 
-		allDefaultDropletUrns, err := createDefault(ctx)
+		// Cloudflare tunnel + ingress + DNS are declared once globally;
+		// every droplet bakes the same connector token into cloud-init.
+		// Cloudflare load-balances across all healthy replicas of the
+		// same tunnel id, so the whole always-online fleet contributes
+		// to HA for the explorer's gateway hostname.
+		cfOut, err := provisionCloudflareTunnel(ctx)
 		if err != nil {
 			return err
 		}
 
-		allAltDropletURNs, err := createAlt(ctx)
+		allDefaultDropletUrns, err := createDefault(ctx, cfOut)
+		if err != nil {
+			return err
+		}
+
+		allAltDropletURNs, err := createAlt(ctx, cfOut)
 		if err != nil {
 			return err
 		}
@@ -57,32 +104,24 @@ func main() {
 			}
 		}
 
+		if err := provisionHeartFirewall(ctx); err != nil {
+			return err
+		}
+
 		return nil
 	})
 }
 
-func createDefault(ctx *pulumi.Context) (pulumi.StringArray, error) {
-	cloudInitRaw, err := os.ReadFile("cloudinit/default/cloud-config.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read default cloud-init config: %w", err)
-	}
-	cloudInitTmpl, err := template.New("cloud-init").Parse(string(cloudInitRaw))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse cloud-init template: %w", err)
-	}
-
+func createDefault(ctx *pulumi.Context, cfOut *cloudflareTunnelOutputs) (pulumi.StringArray, error) {
 	influxToken, ok := ctx.GetConfig("heart:influx-token")
 	if !ok {
 		return nil, fmt.Errorf("required config value 'influx-token' not set")
 	}
 
-	var cloudInitBuf bytes.Buffer
-	if err := cloudInitTmpl.Execute(&cloudInitBuf, cloudInitData{
-		InfluxToken: influxToken,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to render cloud-init template: %w", err)
+	defaultCloudInit, err := renderCloudInit("cloudinit/default/cloud-config.yaml", influxToken, cfOut.Hostname, cfOut.Token)
+	if err != nil {
+		return nil, err
 	}
-	defaultCloudInit := cloudInitBuf.String()
 
 	getSshKeysResult, err := digitalocean.GetSshKeys(ctx, &digitalocean.GetSshKeysArgs{}, nil)
 	if err != nil {
@@ -125,7 +164,7 @@ func createDefault(ctx *pulumi.Context) (pulumi.StringArray, error) {
 				Weekday: pulumi.String("TUE"),
 				Hour:    pulumi.Int(8),
 			},
-			UserData: pulumi.String(defaultCloudInit),
+			UserData: defaultCloudInit,
 		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 		if err != nil {
 			return nil, err
@@ -163,7 +202,7 @@ func createDefault(ctx *pulumi.Context) (pulumi.StringArray, error) {
 			SshKeys:    pulumi.ToStringArray(sshFingerprints),
 			Monitoring: pulumi.Bool(true),
 			Backups:    pulumi.Bool(true),
-			UserData:   pulumi.String(defaultCloudInit),
+			UserData:   defaultCloudInit,
 		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 		if err != nil {
 			return nil, err
@@ -201,7 +240,7 @@ func createDefault(ctx *pulumi.Context) (pulumi.StringArray, error) {
 			SshKeys:    pulumi.ToStringArray(sshFingerprints),
 			Monitoring: pulumi.Bool(true),
 			Backups:    pulumi.Bool(true),
-			UserData:   pulumi.String(defaultCloudInit),
+			UserData:   defaultCloudInit,
 		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 		if err != nil {
 			return nil, err
@@ -214,28 +253,16 @@ func createDefault(ctx *pulumi.Context) (pulumi.StringArray, error) {
 	return allDropletURNs, nil
 }
 
-func createAlt(ctx *pulumi.Context) (pulumi.StringArray, error) {
-	cloudInitRaw, err := os.ReadFile("cloudinit/alt/cloud-config.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read alt cloud-init config: %w", err)
-	}
-	cloudInitTmpl, err := template.New("cloud-init").Parse(string(cloudInitRaw))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse cloud-init template: %w", err)
-	}
-
+func createAlt(ctx *pulumi.Context, cfOut *cloudflareTunnelOutputs) (pulumi.StringArray, error) {
 	influxToken, ok := ctx.GetConfig("heart:influx-token")
 	if !ok {
 		return nil, fmt.Errorf("required config value 'influx-token' not set")
 	}
 
-	var cloudInitBuf bytes.Buffer
-	if err := cloudInitTmpl.Execute(&cloudInitBuf, cloudInitData{
-		InfluxToken: influxToken,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to render cloud-init template: %w", err)
+	defaultCloudInit, err := renderCloudInit("cloudinit/alt/cloud-config.yaml", influxToken, cfOut.Hostname, cfOut.Token)
+	if err != nil {
+		return nil, err
 	}
-	defaultCloudInit := cloudInitBuf.String()
 
 	getSshKeysResult, err := digitalocean.GetSshKeys(ctx, &digitalocean.GetSshKeysArgs{}, nil)
 	if err != nil {
@@ -278,7 +305,7 @@ func createAlt(ctx *pulumi.Context) (pulumi.StringArray, error) {
 				Weekday: pulumi.String("TUE"),
 				Hour:    pulumi.Int(8),
 			},
-			UserData: pulumi.String(defaultCloudInit),
+			UserData: defaultCloudInit,
 		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 		if err != nil {
 			return nil, err
@@ -316,7 +343,7 @@ func createAlt(ctx *pulumi.Context) (pulumi.StringArray, error) {
 			SshKeys:    pulumi.ToStringArray(sshFingerprints),
 			Monitoring: pulumi.Bool(true),
 			Backups:    pulumi.Bool(true),
-			UserData:   pulumi.String(defaultCloudInit),
+			UserData:   defaultCloudInit,
 		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 		if err != nil {
 			return nil, err
@@ -354,7 +381,7 @@ func createAlt(ctx *pulumi.Context) (pulumi.StringArray, error) {
 			SshKeys:    pulumi.ToStringArray(sshFingerprints),
 			Monitoring: pulumi.Bool(true),
 			Backups:    pulumi.Bool(true),
-			UserData:   pulumi.String(defaultCloudInit),
+			UserData:   defaultCloudInit,
 		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
 		if err != nil {
 			return nil, err
