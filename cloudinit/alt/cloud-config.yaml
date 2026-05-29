@@ -490,6 +490,15 @@ write_files:
   # env var` at startup. This wrapper reads /etc/hc-http-gw/env
   # permissively and execs hc-http-gw via /usr/bin/env, which uses
   # execve() directly and accepts arbitrary key strings.
+  #
+  # ⚠️  CROSS-REPO COUPLING: this hc-http-gw launcher script should stay identical
+  #     with the automation/scripts/setup-gateway.sh's phase_write_launcher
+  #     heredoc (the runtime install path for already-provisioned
+  #     droplets). If you edit one, edit the other in the same PR and
+  #     verify with:
+  #         bash automation/scripts/check-launcher-drift.sh
+  #     See automation/docs/hash-explorer-backend.md § "Cross-repo drift
+  #     checks" for context.
   - path: /usr/local/bin/hc-http-gw-launcher
     permissions: "0755"
     owner: root:root
@@ -504,11 +513,11 @@ write_files:
           exit 1
       fi
 
-      # Parse env file with permissive rules: keys may contain hyphens,
-      # dots, or version numbers (e.g. HC_GW_ALLOWED_FNS_unyt-sandbox-holo-hosting-0.90).
-      # systemd's EnvironmentFile= parser silently drops non-POSIX keys,
-      # so we skip it and pass the file contents directly to /usr/bin/env,
-      # which uses execve() and accepts arbitrary key strings.
+      # Parse env file with permissive rules: keys may contain hyphens, dots,
+      # or version numbers (e.g. HC_GW_ALLOWED_FNS_unyt-sandbox-holo-hosting-0.90).
+      # systemd's EnvironmentFile= parser silently drops non-POSIX keys, so we
+      # skip it and pass the file contents directly to /usr/bin/env, which uses
+      # execve() and accepts arbitrary key strings.
       declare -a envs=()
       while IFS= read -r line || [ -n "$line" ]; do
           [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
