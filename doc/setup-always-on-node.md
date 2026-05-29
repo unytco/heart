@@ -204,11 +204,30 @@ list changes — it rewrites `/etc/hc-http-gw/env` cleanly rather than
 appending, and the `--app-id` flag can be passed multiple times to
 expose more than one app from the same droplet.
 
-**Important**: the `hc-http-gw` binary may be absent from
-`/usr/local/bin` until the
-[upstream binary release](./upstream-hc-http-gw-release-todo.md) lands.
-The systemd unit is gated on `ConditionPathExists=/usr/local/bin/hc-http-gw`,
-so this is a non-fatal "service disabled" state, not a boot failure.
+**Important**: cloud-init no longer installs the `hc-http-gw` binary
+itself — it only provisions the systemd unit, the
+`hc-http-gw-launcher` wrapper, the `/etc/hc-http-gw/env` template, and
+the `hc-http-gw-configure` helper. The binary is installed post-boot
+by the operator from a checkout of
+[`unytco/automation`](https://github.com/unytco/automation):
+
+```bash
+cd /path/to/automation
+make heart-always-online-N-gateway   # N = 1, 2, 3, or 4
+```
+
+That target SSHes to the droplet, clones `holochain/hc-http-gw` at
+`.gateway.version` (from `config/<host>/deploy.json`), and runs
+`cargo build --release` on the droplet — slower (~10–15 min first
+run, sub-minute on re-runs that reuse the cargo cache) but currently
+the only working install path since upstream ships no binary assets
+yet. The systemd unit's `ConditionPathExists=` gates on all three
+required files (binary + launcher + env file), so the "no binary yet"
+state is a non-fatal "service disabled," not a boot failure.
+
+See [upstream-hc-http-gw-release-todo.md](./upstream-hc-http-gw-release-todo.md)
+for the upstream-PR plan that will eventually let us pull a pre-built
+binary instead of building locally.
 
 ### Monitoring Your Node
 
@@ -281,12 +300,14 @@ curl -i http://127.0.0.1:8090/health       # bypasses tunnel entirely
 
 # Tunnel hostname returns 530 / 1033 from Cloudflare:
 #   Cloudflare side: tunnel id not found / DNS not yet propagated.
-#   Wait for DNS, or check Pulumi state has the right tunnel id.
+#   Confirm the droplet's /etc/cloudflared/config.yml tunnel id
+#   matches the CF dashboard's tunnel and that the CNAME for the
+#   gateway hostname points at <id>.cfargotunnel.com.
 ```
 
 ## Related Documentation
 
 - [Setup Progenitor](./setup-progenitor.md) — Setting up progenitor nodes specifically
 - [Install Agents](./install-agents.md) — Additional agent installation examples
-- [Cloudflare Tunnel Cutover](./tunnel-cutover.md) — Staged cutover from the legacy laptop-hosted tuunnel to the Pulumi-managed `unyt-tunnel` tunnel
+- [Operator runbook (cross-repo)](https://github.com/unytco/automation/blob/main/docs/hash-explorer-backend.md) — Live end-to-end runbook for the always-on node + tunnel + hc-http-gw stack, in the `unytco/automation` repo (where the operator scripts live)
 - [Upstream `hc-http-gw` Release TODO](./upstream-hc-http-gw-release-todo.md) — Spec for the upstream binary release PR

@@ -74,26 +74,33 @@ pulumi config set heart:blockchain-bridging-alt-count 1
 pulumi config set heart:unyt-bridging-alt-count 1
 ```
 
-Configure the Cloudflare tunnel that fronts the explorer's
-`hc-http-gw` on each droplet:
+Set the public hostname that fronts the explorer's `hc-http-gw` on
+each droplet. This is the hostname `cloudflared` will route into the
+loopback gateway; it's surfaced to operator scripts via
+`/etc/heart-fleet/metadata` on every droplet:
 
 ```shell
-pulumi config set --secret cloudflare:apiToken <token>
-pulumi config set heart:cf-account-id <account_id>
-pulumi config set heart:cf-zone-name <zone>
-pulumi config set heart:gw-hostname <host>
-pulumi config set --secret heart:cloudflare-tunnel-secret \
-    "$(openssl rand -base64 32)"
+pulumi config set heart:gw-hostname unyt-tunnel.unyt.co
 ```
 
-The tunnel + ingress + DNS are then Pulumi-managed; every
-`heart-always-online` droplet runs a `cloudflared` replica with the
-same tunnel id and Cloudflare load-balances across healthy replicas.
-See [Cloudflare Tunnel Cutover](./doc/tunnel-cutover.md) for the staged
-migration from the laptop-hosted legacy tunnel to the Pulumi
-fresh-provisioned `unyt-tunnel` tunnel — including how to roll out
-droplet connectors before flipping the proxy worker's upstream URL,
-and the legacy-tunnel retirement steps once the new path is verified.
+The Cloudflare tunnel itself — origin cert, per-tunnel credentials,
+ingress config, DNS — is **not** managed by this Pulumi program. It's
+operated using Cloudflare's standard locally-managed model:
+`/etc/cloudflared/cert.pem` (CF account origin cert) +
+`/etc/cloudflared/<tunnel-id>.json` (the per-tunnel credentials) +
+`/etc/cloudflared/config.yml` (ingress rules) are streamed onto every
+new droplet by [`unytco/automation`](https://github.com/unytco/automation)'s
+`setup-tunnel.sh` (Makefile target `heart-always-online-N-tunnel`)
+from secrets stored on _this_ Pulumi stack (`heart:cf-cert-pem`,
+`heart:unyt-tunnel-credentials-json`). Operators materialize those
+onto their laptops via `make pull-secrets` in `automation/`. See
+[`automation/docs/hash-explorer-backend.md`](https://github.com/unytco/automation/blob/main/docs/hash-explorer-backend.md)
+§ Architecture for the full picture and § Secrets for the rotation
+flow.
+
+`cloudflared.service` on the droplet is enabled at first boot but
+held inactive by `ConditionPathExists=` until those files exist —
+`setup-tunnel.sh` is what eventually starts it.
 
 Optionally, restrict SSH inbound to a Pulumi-managed allowlist (the
 fleet-wide firewall is **skipped entirely** unless this is set, so
@@ -121,7 +128,7 @@ All binaries are on `PATH` at `/usr/local/bin/`:
 | `hc-http-gw` | Holochain HTTP gateway, bound to `127.0.0.1:8090`. Installed post-boot by the operator via [`unytco/automation`](https://github.com/unytco/automation)'s `setup-gateway.sh` (Makefile target `heart-always-online-N-gateway`); absent until that runs. Currently built from source on the droplet (`cargo build --release` against `holochain/hc-http-gw` at `.gateway.version`) — upstream ships no binary assets yet. The systemd unit's `ConditionPathExists=` gates on all three required files (binary + `hc-http-gw-launcher` + `/etc/hc-http-gw/env`), so a missing binary is non-fatal at boot — see [doc/upstream-hc-http-gw-release-todo.md](./doc/upstream-hc-http-gw-release-todo.md) for the upstream-binary-release plan. |
 | `hc-http-gw-launcher` | Bash wrapper installed by cloud-init at `/usr/local/bin/hc-http-gw-launcher`. Reads `/etc/hc-http-gw/env` permissively and execs `hc-http-gw` via `/usr/bin/env` — required because `hc-http-gw` accepts env-var names containing hyphens / dots that systemd's `EnvironmentFile=` parser silently drops. The launcher body is byte-identical with `automation/scripts/setup-gateway.sh`'s runtime install path; verify with `bash automation/scripts/check-launcher-drift.sh`. |
 | `hc-http-gw-configure` | Helper that writes `/etc/hc-http-gw/env` and restarts `hc-http-gw.service`. Run after installing an `.happ`. |
-| `cloudflared` (from apt) | Cloudflare tunnel connector. Authenticates against the shared tunnel id with a token in `/etc/cloudflared/token`. |
+| `cloudflared` (from apt) | Cloudflare tunnel connector. Reads `/etc/cloudflared/cert.pem` + `/etc/cloudflared/<tunnel-id>.json` + `/etc/cloudflared/config.yml`, all streamed onto the droplet post-boot by `automation/scripts/setup-tunnel.sh` from Pulumi-canonical secrets. The `cloudflared.service` unit's `ConditionPathExists=` gates on these files, so the service is dormant on a fresh droplet until that script runs. |
 
 ### Configuration
 
@@ -148,7 +155,7 @@ Everything lives under `/var/lib/holochain/`:
 | `lair-keystore.service` | Lair keystore daemon |
 | `holochain.service` | Holochain conductor daemon (also ships Holochain metrics directly to InfluxDB) |
 | `holochain-register.service` | Registration service — runs on every boot to register the node and refresh auth credentials. On first boot it polls until an admin approves the key; on subsequent boots it refreshes credentials directly. |
-| `cloudflared.service` | Cloudflare tunnel connector for `unyt-tunnel.unyt.co`. Started automatically; runs as a `DynamicUser` with the token loaded via `systemd-creds`. |
+| `cloudflared.service` | Cloudflare tunnel connector for `unyt-tunnel.unyt.co`. Runs as `root` (needs persistent read access to the per-tunnel credentials file at the path baked into `config.yml`). **Not started at boot** — `/etc/cloudflared/` is empty on a fresh droplet, and the unit's `ConditionPathExists=` gate keeps it inactive. Brought online by the post-boot run of `setup-tunnel.sh` once `cert.pem` + `<tunnel-id>.json` + `config.yml` exist. |
 | `hc-http-gw.service` | Holochain HTTP gateway, listens on `127.0.0.1:8090`. **Not started at boot** — `/etc/hc-http-gw/env` ships with no app ids allowlisted; the operator runs `hc-http-gw-configure --app-id <id>` after installing the `.happ`, which writes the env file and starts the service. |
 
 ### Installing an app

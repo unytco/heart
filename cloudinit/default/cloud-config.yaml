@@ -8,17 +8,6 @@ packages:
   - ca-certificates
 
 write_files:
-  # Cloudflare tunnel connector token. cloudflared on the droplet
-  # authenticates against the shared tunnel id with this. The token is
-  # generated and rotated by Pulumi (provisionCloudflareTunnel in
-  # heart/cloudflare.go) and shipped via this template substitution.
-  # Mode 0600 owner root:root: only systemd's LoadCredential= reads it.
-  - path: /etc/cloudflared/token
-    permissions: "0600"
-    owner: root:root
-    content: |
-      {{ .CloudflareToken }}
-
   # Fleet-wide metadata that operator scripts (smoke-test, ad-hoc
   # debugging) can source without hard-coding values. Mode 0644 because
   # nothing here is sensitive — the gateway hostname is public DNS.
@@ -142,8 +131,9 @@ write_files:
       # installed post-boot by the operator via the `automation/` repo's
       # setup-gateway.sh script. See the gateway install block further
       # down in holochain-first-boot, doc/upstream-hc-http-gw-release-todo.md
-      # for the upstream PR that closes this gap, and doc/tunnel-cutover.md
-      # for the operator runbook.
+      # for the upstream PR that closes this gap, and the operator runbook
+      # at automation/docs/hash-explorer-backend.md (the cross-repo
+      # runbook covering setup-gateway + setup-tunnel + secrets).
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
@@ -260,7 +250,13 @@ write_files:
       systemctl start lair-keystore.service
       systemctl start holochain.service
       systemctl start --no-block holochain-register.service
-      systemctl start --no-block cloudflared.service
+      # cloudflared is intentionally NOT started here. /etc/cloudflared/
+      # has no cert.pem or config.yml yet at first boot — both are
+      # streamed in by automation/scripts/setup-tunnel.sh post-boot
+      # from the Pulumi-canonical secrets. ConditionPathExists on the
+      # service unit holds it inactive until then; the post-boot run
+      # of `systemctl enable --now cloudflared.service` in
+      # setup-tunnel.sh is what actually brings it online.
       # hc-http-gw is intentionally NOT started here. /etc/hc-http-gw/env
       # has an empty HC_GW_ALLOWED_APP_IDS until an operator runs
       # `hc-http-gw-configure --app-id <id>` after installing the .happ.
@@ -458,26 +454,37 @@ write_files:
           echo "WARN: /usr/local/bin/hc-http-gw not present (upstream release pending); env updated but service not started" >&2
       fi
 
-  # cloudflared connector. ConfigSrc on the tunnel is "cloudflare", so
-  # this connector only needs the token to register; ingress rules
-  # come from Pulumi-managed Cloudflare state. LoadCredential keeps the
-  # raw token off the dynamic user's view of the filesystem.
+  # cloudflared connector — locally-managed model. The droplet reads
+  # the per-tunnel credentials file from disk and the ingress rules
+  # from /etc/cloudflared/config.yml, neither of which exist at first
+  # boot. ConditionPathExists= gates the unit on both, so it stays
+  # inactive until automation/scripts/setup-tunnel.sh streams the
+  # cert.pem + credentials JSON onto the droplet (from a Pulumi-canonical
+  # secret, materialized via `make pull-secrets` on the operator
+  # laptop) and writes the named-tunnel config.yml.
+  #
+  # No DynamicUser — cloudflared needs to read the persistent
+  # credentials file at the path baked into config.yml at every
+  # restart, which is awkward to do with LoadCredential's
+  # ephemeral-mount semantics. Root is also what the locally-managed
+  # CF docs and `cloudflared service install` assume.
   - path: /etc/systemd/system/cloudflared.service
     content: |
       [Unit]
       Description=Cloudflare Tunnel connector
       After=network-online.target
       Wants=network-online.target
+      ConditionPathExists=/etc/cloudflared/cert.pem
+      ConditionPathExists=/etc/cloudflared/config.yml
 
       [Service]
       Type=notify
-      DynamicUser=yes
-      SupplementaryGroups=
+      User=root
       NoNewPrivileges=yes
-      ProtectSystem=strict
       ProtectHome=yes
-      LoadCredential=token:/etc/cloudflared/token
-      ExecStart=/bin/bash -c 'exec /usr/bin/cloudflared --no-autoupdate tunnel run --token "$(cat ${CREDENTIALS_DIRECTORY}/token)"'
+      ProtectSystem=strict
+      ReadWritePaths=/etc/cloudflared /var/log/cloudflared
+      ExecStart=/usr/bin/cloudflared --no-autoupdate --config /etc/cloudflared/config.yml tunnel run
       Restart=always
       RestartSec=5
       StandardOutput=journal
