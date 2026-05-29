@@ -186,8 +186,13 @@ the per-droplet `hc-http-gw` and a shared Cloudflare tunnel. After
 
 ```bash
 # Tell hc-http-gw which app id(s) to expose, and which zome functions
-# to allow on each.
-hc-http-gw-configure --app-id "your-app-id" --allowed-fns '*'
+# to allow on each. Prefer an explicit allowlist — do not use '*' in
+# production unless you are deliberately opening every zome function.
+hc-http-gw-configure --app-id "your-app-id" \
+  --allowed-fns 'transactor::get_all_agents,transactor::get_agent_state'
+
+# Troubleshooting only: widen to all functions temporarily, then tighten.
+# hc-http-gw-configure --app-id "your-app-id" --allowed-fns '*'
 
 # Verify gateway -> conductor on the local loopback:
 curl -i http://127.0.0.1:8090/health

@@ -77,7 +77,7 @@ func main() {
 		// Pulumi today, using the locally-managed cloudflared model
 		// (cert.pem + per-tunnel credentials.json on each droplet,
 		// /etc/cloudflared/config.yml for ingress, cloudflared run by
-		// tunnel name). Pulumi's role for the tunnel is currenty reduced to
+		// tunnel name). Pulumi's role for the tunnel is currently reduced to
 		// secret storage: the cert + credentials live as Pulumi
 		// secrets on this stack (heart:cf-cert-pem +
 		// heart:<tunnel>-credentials-json) and are materialized onto

@@ -483,7 +483,7 @@ write_files:
       NoNewPrivileges=yes
       ProtectHome=yes
       ProtectSystem=strict
-      ReadWritePaths=/etc/cloudflared /var/log/cloudflared
+      ReadWritePaths=/etc/cloudflared
       ExecStart=/usr/bin/cloudflared --no-autoupdate --config /etc/cloudflared/config.yml tunnel run
       Restart=always
       RestartSec=5

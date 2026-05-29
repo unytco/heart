@@ -155,7 +155,7 @@ Everything lives under `/var/lib/holochain/`:
 | `lair-keystore.service` | Lair keystore daemon |
 | `holochain.service` | Holochain conductor daemon (also ships Holochain metrics directly to InfluxDB) |
 | `holochain-register.service` | Registration service — runs on every boot to register the node and refresh auth credentials. On first boot it polls until an admin approves the key; on subsequent boots it refreshes credentials directly. |
-| `cloudflared.service` | Cloudflare tunnel connector for `unyt-tunnel.unyt.co`. Runs as `root` (needs persistent read access to the per-tunnel credentials file at the path baked into `config.yml`). **Not started at boot** — `/etc/cloudflared/` is empty on a fresh droplet, and the unit's `ConditionPathExists=` gate keeps it inactive. Brought online by the post-boot run of `setup-tunnel.sh` once `cert.pem` + `<tunnel-id>.json` + `config.yml` exist. |
+| `cloudflared.service` | Cloudflare tunnel connector for the public gateway hostname (`HEART_GATEWAY_HOSTNAME` from `heart:gw-hostname`, also in `/etc/heart-fleet/metadata`). Runs as `root` (needs persistent read access to the per-tunnel credentials file at the path baked into `config.yml`). **Not started at boot** — `/etc/cloudflared/` is empty on a fresh droplet, and the unit's `ConditionPathExists=` gate keeps it inactive. Brought online by the post-boot run of `setup-tunnel.sh` once `cert.pem` + `<tunnel-id>.json` + `config.yml` exist. |
 | `hc-http-gw.service` | Holochain HTTP gateway, listens on `127.0.0.1:8090`. **Not started at boot** — `/etc/hc-http-gw/env` ships with no app ids allowlisted; the operator runs `hc-http-gw-configure --app-id <id>` after installing the `.happ`, which writes the env file and starts the service. |
 
 ### Installing an app
