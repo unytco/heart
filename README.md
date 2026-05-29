@@ -118,7 +118,8 @@ All binaries are on `PATH` at `/usr/local/bin/`:
 | `lair-keystore` | Lair keystore |
 | `hc` | Holochain CLI — use this to install apps and manage the conductor |
 | `holo-keyutil` | Key utilities (`sign`, `extract-pubkey`) used during registration |
-| `hc-http-gw` | Holochain HTTP gateway, bound to `127.0.0.1:8090`. Installed post-boot by the operator via [`unytco/automation`](https://github.com/unytco/automation)'s `setup-gateway.sh` (Makefile target `heart-always-online-N-gateway`); absent until that runs. The systemd unit is `ConditionPathExists=`-gated so this is non-fatal — see [doc/upstream-hc-http-gw-release-todo.md](./doc/upstream-hc-http-gw-release-todo.md) for the long-term path. |
+| `hc-http-gw` | Holochain HTTP gateway, bound to `127.0.0.1:8090`. Installed post-boot by the operator via [`unytco/automation`](https://github.com/unytco/automation)'s `setup-gateway.sh` (Makefile target `heart-always-online-N-gateway`); absent until that runs. Currently built from source on the droplet (`cargo build --release` against `holochain/hc-http-gw` at `.gateway.version`) — upstream ships no binary assets yet. The systemd unit's `ConditionPathExists=` gates on all three required files (binary + `hc-http-gw-launcher` + `/etc/hc-http-gw/env`), so a missing binary is non-fatal at boot — see [doc/upstream-hc-http-gw-release-todo.md](./doc/upstream-hc-http-gw-release-todo.md) for the upstream-binary-release plan. |
+| `hc-http-gw-launcher` | Bash wrapper installed by cloud-init at `/usr/local/bin/hc-http-gw-launcher`. Reads `/etc/hc-http-gw/env` permissively and execs `hc-http-gw` via `/usr/bin/env` — required because `hc-http-gw` accepts env-var names containing hyphens / dots that systemd's `EnvironmentFile=` parser silently drops. The launcher body is byte-identical with `automation/scripts/setup-gateway.sh`'s runtime install path; verify with `bash automation/scripts/check-launcher-drift.sh`. |
 | `hc-http-gw-configure` | Helper that writes `/etc/hc-http-gw/env` and restarts `hc-http-gw.service`. Run after installing an `.happ`. |
 | `cloudflared` (from apt) | Cloudflare tunnel connector. Authenticates against the shared tunnel id with a token in `/etc/cloudflared/token`. |
 
@@ -184,12 +185,15 @@ the recommended posture is an explicit comma-separated allowlist (e.g.
 `main/list_things,main/get_thing`). The helper takes either.
 
 **Note**: if `hc-http-gw` is missing on disk (because the operator
-hasn't yet run `make heart-always-online-N-gateway` from a workshop
-checkout of [`unytco/automation`](https://github.com/unytco/automation)),
+hasn't yet run `make heart-always-online-N-gateway` from a checkout
+of [`unytco/automation`](https://github.com/unytco/automation)),
 `hc-http-gw-configure` will write the env file but warn that the
 service was not started. Run the make target to build the binary from
-the workshop-managed source pin and `scp` it up; the gateway then
-starts automatically once `hc-http-gw-configure` is re-run. See
+upstream `holochain/hc-http-gw` source (cloned at `.gateway.version`
+and built on the droplet via `cargo build --release` — slower than a
+pre-built binary but currently the only working path since upstream
+ships no binary assets). The gateway then starts automatically once
+`hc-http-gw-configure` is re-run. See
 [doc/upstream-hc-http-gw-release-todo.md](./doc/upstream-hc-http-gw-release-todo.md)
 for the upstream-PR plan that will eventually let us pull a pre-built
 binary instead of building locally.

@@ -210,20 +210,24 @@ write_files:
 
       # hc-http-gw binary install is intentionally deferred to the
       # operator. Cloud-init provisions everything around the binary
-      # (systemd unit below, /etc/hc-http-gw/env above, configure helper)
-      # but not the binary itself. To bring the gateway online after
-      # cloud-init has finished:
+      # (systemd unit below, /etc/hc-http-gw/env above, launcher wrapper,
+      # configure helper) but not the binary itself. To bring the
+      # gateway online after cloud-init has finished:
       #
-      #   from a workshop checkout on the operator's machine:
-      #     make heart-always-online-N-gateway   # builds locally + scp
+      #   from a checkout of unytco/automation on the operator's machine:
+      #     make heart-always-online-N-gateway
       #
-      # That target lives in unytco/automation, builds hc-http-gw from
-      # the workshop-managed source pin (workshop/hc-http-gw submodule),
-      # and scp's the binary to /usr/local/bin/hc-http-gw. The systemd
-      # unit below is ConditionPathExists=-gated so the rest of cloud-init
-      # still succeeds while the binary is absent — the service simply
-      # stays inactive until the operator runs setup-gateway and
-      # hc-http-gw-configure.
+      # That target SSHes to the droplet, clones holochain/hc-http-gw at
+      # .gateway.version, and runs `cargo build --release` on the droplet.
+      # No scp / no workshop submodule — upstream ships no binary assets
+      # today, so on-droplet build is the only working path. See
+      # doc/upstream-hc-http-gw-release-todo.md for the upstream-PR plan
+      # that will eventually let setup-gateway.sh curl a pre-built binary
+      # instead. The systemd unit below is ConditionPathExists=-gated on
+      # all three required files (binary + launcher + env), so the rest
+      # of cloud-init still succeeds while the binary is absent — the
+      # service simply stays inactive until the operator runs
+      # setup-gateway and hc-http-gw-configure.
       echo "==> hc-http-gw install deferred — operator runs automation/setup-gateway.sh post-boot."
 
       echo "==> Generating lair passphrase..."
