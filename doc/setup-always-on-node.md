@@ -178,6 +178,62 @@ hc sandbox call --running 8800 enable-app --app-id "your-app-id"
 
 ## Post-Installation
 
+### Wire the App into `hc-http-gw`
+
+The explorer (and any other web2 caller) reaches your installed app via
+the per-droplet `hc-http-gw` and a shared Cloudflare tunnel. After
+`hc sandbox call install-app` succeeds:
+
+```bash
+# Tell hc-http-gw which app id(s) to expose, and which zome functions
+# to allow on each. Prefer an explicit allowlist — do not use '*' in
+# production unless you are deliberately opening every zome function.
+hc-http-gw-configure --app-id "your-app-id" \
+  --allowed-fns 'transactor::get_all_agents,transactor::get_agent_state'
+
+# Troubleshooting only: widen to all functions temporarily, then tighten.
+# hc-http-gw-configure --app-id "your-app-id" --allowed-fns '*'
+
+# Verify gateway -> conductor on the local loopback:
+curl -i http://127.0.0.1:8090/health
+# Expected: HTTP/1.1 200 OK, body "Ok"
+
+# Verify the full chain (browser -> CF worker -> tunnel -> hc-http-gw):
+source /etc/heart-fleet/metadata
+curl -i "https://${HEART_GATEWAY_HOSTNAME}/health"
+# Expected: HTTP/2 200 from a Cloudflare-fronted response.
+```
+
+`hc-http-gw-configure` is safe to re-run any time the installed app
+list changes — it rewrites `/etc/hc-http-gw/env` cleanly rather than
+appending, and the `--app-id` flag can be passed multiple times to
+expose more than one app from the same droplet.
+
+**Important**: cloud-init no longer installs the `hc-http-gw` binary
+itself — it only provisions the systemd unit, the
+`hc-http-gw-launcher` wrapper, the `/etc/hc-http-gw/env` template, and
+the `hc-http-gw-configure` helper. The binary is installed post-boot
+by the operator from a checkout of
+[`unytco/automation`](https://github.com/unytco/automation):
+
+```bash
+cd /path/to/automation
+make heart-always-online-N-gateway   # N = 1, 2, 3, or 4
+```
+
+That target SSHes to the droplet, clones `holochain/hc-http-gw` at
+`.gateway.version` (from `config/<host>/deploy.json`), and runs
+`cargo build --release` on the droplet — slower (~10–15 min first
+run, sub-minute on re-runs that reuse the cargo cache) but currently
+the only working install path since upstream ships no binary assets
+yet. The systemd unit's `ConditionPathExists=` gates on all three
+required files (binary + launcher + env file), so the "no binary yet"
+state is a non-fatal "service disabled," not a boot failure.
+
+See [upstream-hc-http-gw-release-todo.md](./upstream-hc-http-gw-release-todo.md)
+for the upstream-PR plan that will eventually let us pull a pre-built
+binary instead of building locally.
+
 ### Monitoring Your Node
 
 Host metrics (CPU, memory, disk, network) and Holochain metrics are shipped automatically to InfluxDB via Telegraf and the Holochain conductor respectively. Check service status with:
@@ -185,8 +241,11 @@ Host metrics (CPU, memory, disk, network) and Holochain metrics are shipped auto
 ```bash
 systemctl status telegraf
 systemctl status holochain
+systemctl status cloudflared
+systemctl status hc-http-gw
 journalctl -u holochain -f
 journalctl -u lair-keystore -f
+journalctl -u cloudflared -f
 ```
 
 ### Backup Important Data
@@ -229,7 +288,31 @@ journalctl -u holochain-register --no-pager -l
 systemctl start holochain-register
 ```
 
+### Tunnel + Gateway Issues
+
+```bash
+# Gateway is up but returns 403 for every zome call:
+#   You haven't run hc-http-gw-configure yet, or the --app-id passed
+#   doesn't match what's actually installed.
+hc sandbox call --running 8800 list-apps   # see the real ids
+cat /etc/hc-http-gw/env                    # see what gateway thinks
+
+# Tunnel hostname returns 502/523 from Cloudflare:
+#   cloudflared can't reach the local gateway, or the gateway is down.
+systemctl status cloudflared hc-http-gw
+journalctl -u cloudflared --no-pager -l | tail -50
+curl -i http://127.0.0.1:8090/health       # bypasses tunnel entirely
+
+# Tunnel hostname returns 530 / 1033 from Cloudflare:
+#   Cloudflare side: tunnel id not found / DNS not yet propagated.
+#   Confirm the droplet's /etc/cloudflared/config.yml tunnel id
+#   matches the CF dashboard's tunnel and that the CNAME for the
+#   gateway hostname points at <id>.cfargotunnel.com.
+```
+
 ## Related Documentation
 
 - [Setup Progenitor](./setup-progenitor.md) — Setting up progenitor nodes specifically
 - [Install Agents](./install-agents.md) — Additional agent installation examples
+- [Operator runbook (cross-repo)](https://github.com/unytco/automation/blob/main/docs/hash-explorer-backend.md) — Live end-to-end runbook for the always-on node + tunnel + hc-http-gw stack, in the `unytco/automation` repo (where the operator scripts live)
+- [Upstream `hc-http-gw` Release TODO](./upstream-hc-http-gw-release-todo.md) — Spec for the upstream binary release PR

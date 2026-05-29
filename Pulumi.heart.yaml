@@ -11,3 +11,8 @@ config:
   heart:heart-always-online-alt-count: "4"
   heart:blockchain-bridging-alt-count: "1"
   heart:unyt-bridging-alt-count: "1"
+  heart:gw-hostname: unyt-tunnel.unyt.co
+  heart:cf-cert-pem:
+    secure: AAABAEcSP7q1GxuSZhTdRX7j5wXsNcwieiD5t+8LX9HK4e+kfAgy+j7nC9cvq4Qb7snxv4bB/d6tB9QriCoUKVKSh5wOCVZB2z+zKsS/7ldyO7I1sMwfqzwQZscmczHL2pxwLEPDRexqq56QUgL3T/H0fWgCaO5BQp+VW/DWrc2J/W7pcssnVYdXsfMiShpeOBHToHrxy/u8Z0ixsPdawRyWXeorswXIY459t9+djkkkvp1ydyVsWqbbR9He+lM0VsiiZ34ZkzSsvSvNNKbiSeoTm4I55IqbfGhx7clX43hUza4icTFL31ID7dUxB+8KdaJ0yOJfO0tqFycY7N5rVZGvlpWkCMQnbkZ9Snx3xxlLZbHltkd6pgYpBTd/iwjN5Zd68ekQiRr2k10IxrtwUyymv+PpX+5J4plenGzPf1V0SKmVjMTC0dLx5gfcSkrwnDz+Z1h1FA8J2vs9ckta83t/8XveCkqFdiONbRXtv1pHEMjYyN/HpgZnkegMVoqNMtAJJoQjNb7Y5kkv2HrW2+KVCFFDWnhT
+  heart:unyt-tunnel-credentials-json:
+    secure: AAABAOOT9BISzPiLAaxyxHmVlGldw6NUOWNNJWNaaLKd6oU+w2kxZ7pWI/IRC17tqmkan7aSU6v+iG73x+B6Cen7RYPgZ5nBM6M11ZMshymE5ndBlfKRoovyxDJSPYzNLtKT8ECy1fyAxFbU3SGiMxtMeplS8T22kaCLzJRa3OrbxD3jY0T85nBhSgNmuwlWKHqRe6XCKauxQauQXTN/wHM3LXeDL5w2HEQ0kzUPOr9H5Eg71OMvH5NthTNLqZLkjm6LM78i02BOUolEikjnCRc2C06mi06haj4YiNeKhfxyz9q1tKNmSv2HzWZiR6yCae23SYkGjgQpvBIgtgxYf1QT3HYc0FFKifKE8w==

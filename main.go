@@ -11,8 +11,45 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// cloudInitData is the value passed to text/template when rendering
+// cloud-config.yaml.
+//   - InfluxToken is the InfluxDB write token droplets use for telemetry.
+//   - GatewayHostname is the public hc-http-gw hostname (operator
+//     scripts source it from /etc/heart-fleet/metadata; nothing on the
+//     droplet uses it for actual ingress — that's bound by the
+//     locally-managed Cloudflare tunnel's credentials.json + config.yml,
+//     which automation/scripts/setup-tunnel.sh streams in post-boot).
+//
+// The Cloudflare-side secrets themselves (cert.pem +
+// <tunnel>-credentials.json) flow through that automation path rather
+// than being baked into cloud-init. See automation/docs/
+// hash-explorer-backend.md § Secrets for the rotation flow.
 type cloudInitData struct {
-	InfluxToken string
+	InfluxToken     string
+	GatewayHostname string
+}
+
+// renderCloudInit reads a cloud-config template from disk and returns
+// it as a plain string ready for the Droplet UserData field. All
+// substitutions are stack-config strings, so there's no async Pulumi
+// Output to thread through.
+func renderCloudInit(templatePath, influxToken, gwHostname string) (string, error) {
+	cloudInitRaw, err := os.ReadFile(templatePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read cloud-init config %q: %w", templatePath, err)
+	}
+	tmpl, err := template.New("cloud-init").Parse(string(cloudInitRaw))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse cloud-init template %q: %w", templatePath, err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cloudInitData{
+		InfluxToken:     influxToken,
+		GatewayHostname: gwHostname,
+	}); err != nil {
+		return "", fmt.Errorf("failed to render cloud-init template %q: %w", templatePath, err)
+	}
+	return buf.String(), nil
 }
 
 var regions = []digitalocean.Region{
@@ -36,6 +73,17 @@ func main() {
 			return err
 		}
 
+		// The Cloudflare tunnel + ingress + DNS are managed *outside*
+		// Pulumi today, using the locally-managed cloudflared model
+		// (cert.pem + per-tunnel credentials.json on each droplet,
+		// /etc/cloudflared/config.yml for ingress, cloudflared run by
+		// tunnel name). Pulumi's role for the tunnel is currently reduced to
+		// secret storage: the cert + credentials live as Pulumi
+		// secrets on this stack (heart:cf-cert-pem +
+		// heart:<tunnel>-credentials-json) and are materialized onto
+		// operator laptops via `make pull-secrets` in unytco/automation.
+		// See automation/docs/hash-explorer-backend.md § Architecture
+		// for the full picture and § Secrets for the rotation flow.
 		allDefaultDropletUrns, err := createDefault(ctx)
 		if err != nil {
 			return err
@@ -57,32 +105,28 @@ func main() {
 			}
 		}
 
+		if err := provisionHeartFirewall(ctx); err != nil {
+			return err
+		}
+
 		return nil
 	})
 }
 
 func createDefault(ctx *pulumi.Context) (pulumi.StringArray, error) {
-	cloudInitRaw, err := os.ReadFile("cloudinit/default/cloud-config.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read default cloud-init config: %w", err)
-	}
-	cloudInitTmpl, err := template.New("cloud-init").Parse(string(cloudInitRaw))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse cloud-init template: %w", err)
-	}
-
 	influxToken, ok := ctx.GetConfig("heart:influx-token")
 	if !ok {
 		return nil, fmt.Errorf("required config value 'influx-token' not set")
 	}
-
-	var cloudInitBuf bytes.Buffer
-	if err := cloudInitTmpl.Execute(&cloudInitBuf, cloudInitData{
-		InfluxToken: influxToken,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to render cloud-init template: %w", err)
+	gwHostname, ok := ctx.GetConfig("heart:gw-hostname")
+	if !ok {
+		return nil, fmt.Errorf("required config value 'heart:gw-hostname' not set (the public hostname fronting hc-http-gw, e.g. unyt-tunnel.unyt.co)")
 	}
-	defaultCloudInit := cloudInitBuf.String()
+
+	defaultCloudInit, err := renderCloudInit("cloudinit/default/cloud-config.yaml", influxToken, gwHostname)
+	if err != nil {
+		return nil, err
+	}
 
 	getSshKeysResult, err := digitalocean.GetSshKeys(ctx, &digitalocean.GetSshKeysArgs{}, nil)
 	if err != nil {
@@ -215,27 +259,19 @@ func createDefault(ctx *pulumi.Context) (pulumi.StringArray, error) {
 }
 
 func createAlt(ctx *pulumi.Context) (pulumi.StringArray, error) {
-	cloudInitRaw, err := os.ReadFile("cloudinit/alt/cloud-config.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read alt cloud-init config: %w", err)
-	}
-	cloudInitTmpl, err := template.New("cloud-init").Parse(string(cloudInitRaw))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse cloud-init template: %w", err)
-	}
-
 	influxToken, ok := ctx.GetConfig("heart:influx-token")
 	if !ok {
 		return nil, fmt.Errorf("required config value 'influx-token' not set")
 	}
-
-	var cloudInitBuf bytes.Buffer
-	if err := cloudInitTmpl.Execute(&cloudInitBuf, cloudInitData{
-		InfluxToken: influxToken,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to render cloud-init template: %w", err)
+	gwHostname, ok := ctx.GetConfig("heart:gw-hostname")
+	if !ok {
+		return nil, fmt.Errorf("required config value 'heart:gw-hostname' not set (the public hostname fronting hc-http-gw, e.g. unyt-tunnel.unyt.co)")
 	}
-	defaultCloudInit := cloudInitBuf.String()
+
+	defaultCloudInit, err := renderCloudInit("cloudinit/alt/cloud-config.yaml", influxToken, gwHostname)
+	if err != nil {
+		return nil, err
+	}
 
 	getSshKeysResult, err := digitalocean.GetSshKeys(ctx, &digitalocean.GetSshKeysArgs{}, nil)
 	if err != nil {
