@@ -102,12 +102,17 @@ flow.
 held inactive by `ConditionPathExists=` until those files exist —
 `setup-tunnel.sh` is what eventually starts it.
 
-Optionally, restrict SSH inbound to a Pulumi-managed allowlist (the
-fleet-wide firewall is **skipped entirely** unless this is set, so
-nothing locks operators out by accident):
+Optionally, restrict SSH inbound to a Pulumi-managed allowlist. The
+firewall is **skipped entirely** unless `heart:operator-cidrs` is set,
+so nothing locks operators out by accident. On first enable it attaches
+only to the **`heart-firewall-pilot`** tag — not the live fleet tags.
+Tag one droplet in the DO console, run `scripts/smoke-test.sh`, then
+opt into fleet-wide attach:
 
 ```shell
 pulumi config set heart:operator-cidrs "203.0.113.7/32,198.51.100.0/24"
+# After pilot smoke-test on a single tagged droplet:
+pulumi config set heart:firewall-tags "heart-always-online,heart-always-online-alt"
 ```
 
 ## Node layout

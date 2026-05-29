@@ -8,6 +8,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// pilotFirewallTag is the default DO tag the fleet firewall attaches to
+// on first rollout. It is intentionally NOT heart-always-online — tag
+// one droplet with heart-firewall-pilot in the DO console, smoke-test,
+// then opt into fleet-wide attach via heart:firewall-tags.
+const pilotFirewallTag = "heart-firewall-pilot"
+
 // provisionHeartFirewall codifies the "no public port on a key-holding
 // node" model at the cloud edge:
 //
@@ -16,24 +22,26 @@ import (
 //     The conductor admin (8800), hc-http-gw (8090), and the
 //     hypothetical HTTP/HTTPS ports stay loopback-bound and are not
 //     exposed here — cloudflared reaches them via 127.0.0.1.
-//   - Outbound: 53/udp+tcp (DNS), 80/tcp (apt), 443/tcp (Cloudflare
+//   - Outbound: 53/udp+tcp (DNS), 22/tcp (git-over-SSH for on-droplet
+//     cargo build / setup-gateway), 80/tcp (apt), 443/tcp (Cloudflare
 //     tunnel, InfluxDB, GitHub releases, Holochain bootstrap/relay),
-//     and ICMP. Cloudflare's tunnel transport sometimes uses UDP/443
-//     (QUIC), so we open udp/443 too.
+//     udp/443 (QUIC), udp/1-65535 (Holochain iroh/tx5), and ICMP.
 //
-// Firewall membership is by DO tag (heart-always-online +
-// heart-always-online-alt), so the firewall picks up new droplets
-// automatically as the fleet scales without a Pulumi diff for every
-// droplet.
+// Rollout is deliberately **not** fleet-wide on first enable:
 //
-// The operator allowlist comes from a single Pulumi config value:
-// `heart:operator-cidrs` (comma-separated CIDRs). For first-cut
-// rollouts where operators all SSH from the same VPN egress, this is
-// one entry. If unset, this function logs and returns without
-// creating the firewall — opt-in until the operator confirms their
-// CIDR list. (Misconfiguring this locks operators out of every
-// always-online droplet at once, which is the kind of failure mode
-// that warrants explicit opt-in.)
+//   - heart:operator-cidrs must be set (SSH inbound allowlist). Without
+//     it the firewall is skipped entirely.
+//   - heart:firewall-tags controls which DO tags receive the firewall.
+//     When unset, only pilotFirewallTag ("heart-firewall-pilot") is
+//     used — tag a single droplet in the DO console, run smoke-test.sh,
+//     then set heart:firewall-tags to the production fleet tags
+//     (heart-always-online, heart-always-online-alt, …) for a
+//     deliberate fleet-wide attach.
+//
+// DO Cloud Firewalls are deny-by-default in both directions once
+// attached. Attaching to heart-always-online without a pilot pass would
+// immediately drop outbound TCP outside 53/80/443 on every tagged
+// droplet (breaking git-over-SSH during setup-gateway, among others).
 func provisionHeartFirewall(ctx *pulumi.Context) error {
 	operatorCidrsRaw, ok := ctx.GetConfig("heart:operator-cidrs")
 	if !ok || strings.TrimSpace(operatorCidrsRaw) == "" {
@@ -52,21 +60,24 @@ func provisionHeartFirewall(ctx *pulumi.Context) error {
 		return fmt.Errorf("heart:operator-cidrs parsed to zero CIDRs (raw=%q); set at least one or unset the key", operatorCidrsRaw)
 	}
 
+	tags, fleetWide, err := firewallTagsFromConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if !fleetWide {
+		_ = ctx.Log.Info(
+			"heart-fleet-firewall attaching to pilot tag only ("+pilotFirewallTag+"); "+
+				"tag one droplet, smoke-test, then set heart:firewall-tags for fleet-wide attach",
+			nil,
+		)
+	}
+
 	openWorld := pulumi.StringArray{
 		pulumi.String("0.0.0.0/0"),
 		pulumi.String("::/0"),
 	}
 
-	tags := pulumi.StringArray{
-		pulumi.String("heart-always-online"),
-		pulumi.String("heart-always-online-alt"),
-		pulumi.String("blockchain-bridging"),
-		pulumi.String("blockchain-bridging-alt"),
-		pulumi.String("unyt-bridging"),
-		pulumi.String("unyt-bridging-alt"),
-	}
-
-	_, err := digitalocean.NewFirewall(ctx, "heart-fleet-firewall", &digitalocean.FirewallArgs{
+	_, err = digitalocean.NewFirewall(ctx, "heart-fleet-firewall", &digitalocean.FirewallArgs{
 		Name: pulumi.String("heart-fleet-firewall"),
 		Tags: tags,
 		InboundRules: digitalocean.FirewallInboundRuleArray{
@@ -89,6 +100,13 @@ func provisionHeartFirewall(ctx *pulumi.Context) error {
 			&digitalocean.FirewallOutboundRuleArgs{
 				Protocol:             pulumi.String("udp"),
 				PortRange:            pulumi.String("53"),
+				DestinationAddresses: openWorld,
+			},
+			// git-over-SSH during on-droplet `cargo build` / setup-gateway
+			// (crates.io is 443; private git deps may use ssh:// on 22).
+			&digitalocean.FirewallOutboundRuleArgs{
+				Protocol:             pulumi.String("tcp"),
+				PortRange:            pulumi.String("22"),
 				DestinationAddresses: openWorld,
 			},
 			&digitalocean.FirewallOutboundRuleArgs{
@@ -129,4 +147,29 @@ func provisionHeartFirewall(ctx *pulumi.Context) error {
 	}
 
 	return nil
+}
+
+// firewallTagsFromConfig resolves which DO tags receive the firewall.
+//
+//   - heart:firewall-tags unset → pilot tag only (NOT fleet-wide).
+//   - heart:firewall-tags set → comma-separated explicit tag list
+//     (use for fleet-wide attach after pilot smoke-test passes).
+func firewallTagsFromConfig(ctx *pulumi.Context) (pulumi.StringArray, bool, error) {
+	raw, ok := ctx.GetConfig("heart:firewall-tags")
+	if !ok || strings.TrimSpace(raw) == "" {
+		return pulumi.StringArray{pulumi.String(pilotFirewallTag)}, false, nil
+	}
+
+	tags := pulumi.StringArray{}
+	for _, t := range strings.Split(raw, ",") {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		tags = append(tags, pulumi.String(t))
+	}
+	if len(tags) == 0 {
+		return nil, false, fmt.Errorf("heart:firewall-tags parsed to zero tags (raw=%q)", raw)
+	}
+	return tags, true, nil
 }
