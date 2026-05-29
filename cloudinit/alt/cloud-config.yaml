@@ -33,8 +33,16 @@ write_files:
   # and per-app HC_GW_ALLOWED_FNS_<id> via /usr/local/bin/hc-http-gw-configure
   # after the .happ is installed. Empty allow-list = gateway returns 403 for
   # every request, which is the safe default.
+  #
+  # Mode 0644 (world-readable, root-writable): the DynamicUser systemd
+  # creates for hc-http-gw.service isn't in the root group, so 0640
+  # root:root yields EACCES at startup (confirmed during the
+  # heart-always-online-3 manual cutover). The env file holds no
+  # secrets — just a loopback URL, app ids, and function allowlists
+  # (which govern what's exposed over HTTPS and are intentionally
+  # public posture).
   - path: /etc/hc-http-gw/env
-    permissions: "0640"
+    permissions: "0644"
     owner: root:root
     content: |
       HC_GW_ADMIN_WS_URL=ws://127.0.0.1:8800
@@ -128,18 +136,14 @@ write_files:
 
       HOLOCHAIN_VERSION="holochain-0.6.1"
       HOLO_KEYUTIL_VERSION="v0.1.0"
-      # Upstream holochain/hc-http-gw doesn't ship binary assets with
-      # its tags (every release has `"assets": []` — verified May 2026),
-      # so heart mirrors them via the `release-hc-http-gw.yml`
-      # workflow. The URL below points at heart's release named
-      # `hc-http-gw-${HC_HTTP_GW_VERSION}`. To bump the version:
-      #   1. `gh workflow run release-hc-http-gw.yml -f upstream_tag=v0.X.Y`
-      #   2. wait for the heart release to appear
-      #   3. bump HC_HTTP_GW_VERSION below
-      #   4. `./scripts/sync-cloud-configs.sh` (mirror to alt)
-      # See doc/upstream-hc-http-gw-release-todo.md for the upstream PR
-      # that will eventually deprecate this mirror.
-      HC_HTTP_GW_VERSION="v0.3.2"
+      # NOTE: hc-http-gw is intentionally not downloaded by cloud-init.
+      # Upstream holochain/hc-http-gw ships no binary assets today (every
+      # release has `"assets": []` — verified May 2026), so the binary is
+      # installed post-boot by the operator via the `automation/` repo's
+      # setup-gateway.sh script. See the gateway install block further
+      # down in holochain-first-boot, doc/upstream-hc-http-gw-release-todo.md
+      # for the upstream PR that closes this gap, and doc/tunnel-cutover.md
+      # for the operator runbook.
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
@@ -204,26 +208,23 @@ write_files:
           chmod 755 "/usr/local/bin/holo-keyutil"
       fi
 
-      # hc-http-gw is downloaded from heart's mirror release (the
-      # upstream release pipeline doesn't attach binaries — see the
-      # comment near HC_HTTP_GW_VERSION above). The systemd unit below
-      # is ConditionPathExists=-gated on the binary, so if the download
-      # fails (network blip, mirror release missing for the requested
-      # version) the rest of cloud-init still succeeds and the gateway
-      # service stays inactive until an operator drops the binary in.
-      echo "==> Downloading hc-http-gw (${HC_HTTP_GW_VERSION})..."
-      if [ -f "/usr/local/bin/hc-http-gw" ]; then
-          echo "    hc-http-gw already present, skipping"
-      else
-          if curl -fsSL \
-                  -o "/usr/local/bin/hc-http-gw" \
-                  "https://github.com/unytco/heart/releases/download/hc-http-gw-${HC_HTTP_GW_VERSION}/hc-http-gw-x86_64-unknown-linux-gnu"; then
-              chmod 755 "/usr/local/bin/hc-http-gw"
-          else
-              echo "    WARN: hc-http-gw mirror release missing for ${HC_HTTP_GW_VERSION}; gateway disabled. Trigger the release-hc-http-gw workflow and re-run cloud-init." >&2
-              rm -f /usr/local/bin/hc-http-gw
-          fi
-      fi
+      # hc-http-gw binary install is intentionally deferred to the
+      # operator. Cloud-init provisions everything around the binary
+      # (systemd unit below, /etc/hc-http-gw/env above, configure helper)
+      # but not the binary itself. To bring the gateway online after
+      # cloud-init has finished:
+      #
+      #   from a workshop checkout on the operator's machine:
+      #     make heart-always-online-N-gateway   # builds locally + scp
+      #
+      # That target lives in unytco/automation, builds hc-http-gw from
+      # the workshop-managed source pin (workshop/hc-http-gw submodule),
+      # and scp's the binary to /usr/local/bin/hc-http-gw. The systemd
+      # unit below is ConditionPathExists=-gated so the rest of cloud-init
+      # still succeeds while the binary is absent — the service simply
+      # stays inactive until the operator runs setup-gateway and
+      # hc-http-gw-configure.
+      echo "==> hc-http-gw install deferred — operator runs automation/setup-gateway.sh post-boot."
 
       echo "==> Generating lair passphrase..."
       mkdir -p "${HOLOCHAIN_DIR}" "${LAIR_DIR}"
@@ -423,8 +424,11 @@ write_files:
 
       # Build the env file fresh so re-runs don't accumulate stale
       # HC_GW_ALLOWED_FNS_<old-id> lines. The bind addr / admin URL /
-      # listen port are constants for this droplet.
-      umask 0027
+      # listen port are constants for this droplet. Mode 0644 so the
+      # DynamicUser systemd creates for hc-http-gw.service can read it
+      # — the env file holds no secrets, just app ids + function
+      # allowlists (which are HTTPS-exposed posture anyway).
+      umask 0022
       tmp=$(mktemp /etc/hc-http-gw/env.XXXXXX)
       {
           echo "HC_GW_ADMIN_WS_URL=ws://127.0.0.1:8800"
@@ -438,7 +442,7 @@ write_files:
           done
       } > "$tmp"
       chown root:root "$tmp"
-      chmod 0640 "$tmp"
+      chmod 0644 "$tmp"
       mv "$tmp" "$ENV_FILE"
 
       echo "Wrote ${ENV_FILE} (app ids: ${APP_IDS}, allowed fns: ${ALLOWED_FNS})"
@@ -478,14 +482,55 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 
+  # hc-http-gw launcher. Required because hc-http-gw env var names can
+  # include hyphens / dots / version suffixes (e.g.
+  # HC_GW_ALLOWED_FNS_unyt-sandbox-holo-hosting-0.90) which systemd's
+  # EnvironmentFile= parser silently drops as "invalid assignment",
+  # causing the service to fail with `Missing HC_GW_ALLOWED_FNS_<id>
+  # env var` at startup. This wrapper reads /etc/hc-http-gw/env
+  # permissively and execs hc-http-gw via /usr/bin/env, which uses
+  # execve() directly and accepts arbitrary key strings.
+  - path: /usr/local/bin/hc-http-gw-launcher
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -e
+
+      ENV_FILE=/etc/hc-http-gw/env
+
+      if [ ! -r "$ENV_FILE" ]; then
+          echo "hc-http-gw-launcher: $ENV_FILE not readable" >&2
+          exit 1
+      fi
+
+      # Parse env file with permissive rules: keys may contain hyphens,
+      # dots, or version numbers (e.g. HC_GW_ALLOWED_FNS_unyt-sandbox-holo-hosting-0.90).
+      # systemd's EnvironmentFile= parser silently drops non-POSIX keys,
+      # so we skip it and pass the file contents directly to /usr/bin/env,
+      # which uses execve() and accepts arbitrary key strings.
+      declare -a envs=()
+      while IFS= read -r line || [ -n "$line" ]; do
+          [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+          envs+=("$line")
+      done < "$ENV_FILE"
+
+      exec /usr/bin/env "${envs[@]}" /usr/local/bin/hc-http-gw
+
   # hc-http-gw bound to 127.0.0.1:8090 (default for HC_GW_ADDRESS). Not
   # publicly reachable — cloudflared bridges in via loopback. Empty
   # HC_GW_ALLOWED_APP_IDS in the env file = gateway returns 403 for
   # every request, which is the safe default until the operator runs
-  # `hc-http-gw-configure --app-id <id>`. Conditioning on /usr/local/bin/hc-http-gw
-  # being present (ConditionPathExists=) lets the unit be enabled but
-  # not fail loudly when the upstream release pipeline hasn't shipped
-  # the binary yet.
+  # `hc-http-gw-configure --app-id <id>`.
+  #
+  # ExecStart points at hc-http-gw-launcher (NOT directly at the
+  # binary), and EnvironmentFile= is intentionally absent — the
+  # launcher reads /etc/hc-http-gw/env with permissive parsing that
+  # accepts hyphenated env var names. ConditionPathExists= on all
+  # three required files (binary, launcher, env) means a missing
+  # piece yields an obvious "condition not met" status instead of a
+  # silent fail-loop, and lets the unit be enabled even before the
+  # operator runs automation/setup-gateway.sh to install the binary.
   - path: /etc/systemd/system/hc-http-gw.service
     content: |
       [Unit]
@@ -493,12 +538,13 @@ write_files:
       After=holochain.service
       Wants=holochain.service
       ConditionPathExists=/usr/local/bin/hc-http-gw
+      ConditionPathExists=/usr/local/bin/hc-http-gw-launcher
+      ConditionPathExists=/etc/hc-http-gw/env
 
       [Service]
       Type=simple
       DynamicUser=yes
-      EnvironmentFile=/etc/hc-http-gw/env
-      ExecStart=/usr/local/bin/hc-http-gw
+      ExecStart=/usr/local/bin/hc-http-gw-launcher
       Restart=always
       RestartSec=5
       NoNewPrivileges=yes
