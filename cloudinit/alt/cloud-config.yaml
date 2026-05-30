@@ -10,12 +10,14 @@ packages:
 write_files:
   # Fleet-wide metadata that operator scripts (smoke-test, ad-hoc
   # debugging) can source without hard-coding values. Mode 0644 because
-  # nothing here is sensitive — the gateway hostname is public DNS.
+  # nothing here is sensitive -- the gateway hostname is public DNS.
   - path: /etc/heart-fleet/metadata
     permissions: "0644"
     owner: root:root
     content: |
       HEART_GATEWAY_HOSTNAME={{ .GatewayHostname }}
+      HEART_PRIMARY_SERVICE={{ .PrimaryService }}
+      HEART_SERVICES={{ .Services }}
 
   # hc-http-gw runtime env. Conductor admin port and gateway listen
   # address are hard-coded here; the operator only sets HC_GW_ALLOWED_APP_IDS
@@ -27,7 +29,7 @@ write_files:
   # creates for hc-http-gw.service isn't in the root group, so 0640
   # root:root yields EACCES at startup (confirmed during the
   # heart-always-online-3 manual cutover). The env file holds no
-  # secrets — just a loopback URL, app ids, and function allowlists
+  # secrets -- just a loopback URL, app ids, and function allowlists
   # (which govern what's exposed over HTTPS and are intentionally
   # public posture).
   - path: /etc/hc-http-gw/env
@@ -88,18 +90,14 @@ write_files:
             type: websocket
             port: 8800
             danger_bind_addr: ~
-            # Restricted to the two clients that legitimately hit the
-            # admin port from inside this droplet:
-            #   - hc-http-gw uses origin "hc-http-gw" (per its spec.md
-            #     AttachAppInterface request).
-            #   - holochain-register / operator app installs go through
-            #     `hc sandbox call --running 8800`, which sets origin
-            #     "hc-sandbox".
-            # The port stays bound to localhost regardless, but this is
-            # defence in depth: if anything ever bridges the admin port
-            # off the loopback, the allowed-origins filter still gates
-            # untrusted clients.
-            allowed_origins: "hc-http-gw,hc-sandbox"
+            # Admin port is bound to loopback only, so we allow any Origin.
+            # NOTE: a prior attempt to restrict this to "hc-http-gw,hc-sandbox"
+            # broke ALL admin access. Holochain's allowed_origins is "*" or an
+            # EXACT origin match (a comma-list is treated as one literal origin),
+            # and the real origins are: `hc sandbox call` sends "holochain_websocket"
+            # (NOT "hc-sandbox"), hc-http-gw sends "hc-http-gw". To re-tighten
+            # later, use the correct list form and include "holochain_websocket".
+            allowed_origins: "*"
       network:
         base64_auth_material_bootstrap: ~
         base64_auth_material_relay: ~
@@ -127,7 +125,7 @@ write_files:
       HOLO_KEYUTIL_VERSION="v0.1.0"
       # NOTE: hc-http-gw is intentionally not downloaded by cloud-init.
       # Upstream holochain/hc-http-gw ships no binary assets today (every
-      # release has `"assets": []` — verified May 2026), so the binary is
+      # release has `"assets": []` -- verified May 2026), so the binary is
       # installed post-boot by the operator via the `automation/` repo's
       # setup-gateway.sh script. See the gateway install block further
       # down in holochain-first-boot, doc/upstream-hc-http-gw-release-todo.md
@@ -160,7 +158,7 @@ write_files:
       # Install cloudflared from Cloudflare's apt repo. We pin to
       # `--no-autoupdate` in the systemd unit below so the binary moves
       # in lockstep with a deliberate apt-get upgrade rather than
-      # silently updating itself in place — same posture as the
+      # silently updating itself in place -- same posture as the
       # holochain / lair / hc binaries below.
       echo "==> Installing cloudflared..."
       if ! command -v cloudflared >/dev/null 2>&1; then
@@ -209,16 +207,16 @@ write_files:
       #
       # That target SSHes to the droplet, clones holochain/hc-http-gw at
       # .gateway.version, and runs `cargo build --release` on the droplet.
-      # No scp / no workshop submodule — upstream ships no binary assets
+      # No scp / no workshop submodule -- upstream ships no binary assets
       # today, so on-droplet build is the only working path. See
       # doc/upstream-hc-http-gw-release-todo.md for the upstream-PR plan
       # that will eventually let setup-gateway.sh curl a pre-built binary
       # instead. The systemd unit below is ConditionPathExists=-gated on
       # all three required files (binary + launcher + env), so the rest
-      # of cloud-init still succeeds while the binary is absent — the
+      # of cloud-init still succeeds while the binary is absent -- the
       # service simply stays inactive until the operator runs
       # setup-gateway and hc-http-gw-configure.
-      echo "==> hc-http-gw install deferred — operator runs automation/setup-gateway.sh post-boot."
+      echo "==> hc-http-gw install deferred -- operator runs automation/setup-gateway.sh post-boot."
 
       echo "==> Generating lair passphrase..."
       mkdir -p "${HOLOCHAIN_DIR}" "${LAIR_DIR}"
@@ -251,7 +249,7 @@ write_files:
       systemctl start holochain.service
       systemctl start --no-block holochain-register.service
       # cloudflared is intentionally NOT started here. /etc/cloudflared/
-      # has no cert.pem or config.yml yet at first boot — both are
+      # has no cert.pem or config.yml yet at first boot -- both are
       # streamed in by automation/scripts/setup-tunnel.sh post-boot
       # from the Pulumi-canonical secrets. ConditionPathExists on the
       # service unit holds it inactive until then; the post-boot run
@@ -426,7 +424,7 @@ write_files:
       # HC_GW_ALLOWED_FNS_<old-id> lines. The bind addr / admin URL /
       # listen port are constants for this droplet. Mode 0644 so the
       # DynamicUser systemd creates for hc-http-gw.service can read it
-      # — the env file holds no secrets, just app ids + function
+      # -- the env file holds no secrets, just app ids + function
       # allowlists (which are HTTPS-exposed posture anyway).
       umask 0022
       tmp=$(mktemp /etc/hc-http-gw/env.XXXXXX)
@@ -454,7 +452,7 @@ write_files:
           echo "WARN: /usr/local/bin/hc-http-gw not present (upstream release pending); env updated but service not started" >&2
       fi
 
-  # cloudflared connector — locally-managed model. The droplet reads
+  # cloudflared connector -- locally-managed model. The droplet reads
   # the per-tunnel credentials file from disk and the ingress rules
   # from /etc/cloudflared/config.yml, neither of which exist at first
   # boot. ConditionPathExists= gates the unit on both, so it stays
@@ -463,7 +461,7 @@ write_files:
   # secret, materialized via `make pull-secrets` on the operator
   # laptop) and writes the named-tunnel config.yml.
   #
-  # No DynamicUser — cloudflared needs to read the persistent
+  # No DynamicUser -- cloudflared needs to read the persistent
   # credentials file at the path baked into config.yml at every
   # restart, which is awkward to do with LoadCredential's
   # ephemeral-mount semantics. Root is also what the locally-managed
@@ -502,13 +500,13 @@ write_files:
   # permissively and execs hc-http-gw via /usr/bin/env, which uses
   # execve() directly and accepts arbitrary key strings.
   #
-  # ⚠️  CROSS-REPO COUPLING: this hc-http-gw launcher script should stay identical
+  # WARNING: CROSS-REPO COUPLING: this hc-http-gw launcher script should stay identical
   #     with the automation/scripts/setup-gateway.sh's phase_write_launcher
   #     heredoc (the runtime install path for already-provisioned
   #     droplets). If you edit one, edit the other in the same PR and
   #     verify with:
   #         bash automation/scripts/check-launcher-drift.sh
-  #     See automation/docs/hash-explorer-backend.md § "Cross-repo drift
+  #     See automation/docs/hash-explorer-backend.md section "Cross-repo drift
   #     checks" for context.
   - path: /usr/local/bin/hc-http-gw-launcher
     permissions: "0755"
@@ -538,13 +536,13 @@ write_files:
       exec /usr/bin/env "${envs[@]}" /usr/local/bin/hc-http-gw
 
   # hc-http-gw bound to 127.0.0.1:8090 (default for HC_GW_ADDRESS). Not
-  # publicly reachable — cloudflared bridges in via loopback. Empty
+  # publicly reachable -- cloudflared bridges in via loopback. Empty
   # HC_GW_ALLOWED_APP_IDS in the env file = gateway returns 403 for
   # every request, which is the safe default until the operator runs
   # `hc-http-gw-configure --app-id <id>`.
   #
   # ExecStart points at hc-http-gw-launcher (NOT directly at the
-  # binary), and EnvironmentFile= is intentionally absent — the
+  # binary), and EnvironmentFile= is intentionally absent -- the
   # launcher reads /etc/hc-http-gw/env with permissive parsing that
   # accepts hyphenated env var names. ConditionPathExists= on all
   # three required files (binary, launcher, env) means a missing

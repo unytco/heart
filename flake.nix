@@ -33,6 +33,10 @@
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
               pulumiBundle
+              # Go toolchain — the Pulumi program is `runtime: go`, so
+              # `pulumi up` shells out to `go` to compile it, and AGENTS.md's
+              # `nix develop -c go build/vet` workflow needs it on PATH.
+              go
               netcat
               yq
               jq

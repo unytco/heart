@@ -1,0 +1,5 @@
+config:
+  digitalocean:token:
+    secure: AAABAIDWCFV2wpDtgm2lTTve5VABu54US9yGNSrNQD06Fo43YhAES+2vEhvpsGYMtEjUhwIeN0EAK9auepFCsmTtfNnuQmR9YqfmO/Y1cu5+/9vn3Cjp7pv6SFaHH2TMCGY1WqzfJg==
+  heart:influx-token:
+    secure: AAABANiiogx2ygbTcUBINqORXmE9jKFVuUe6CgSROwwLz7pX6Q/jH5kMlbW3gE2VSiBmZERaeZuCYL3BUOwF6D4wgD5BvmJu8mwdF67JAiF4fiVEN2DwyXV5q4YZyT3aaenKHVmX+Y8nCfbI8XOUwBomOmc1Jw==
