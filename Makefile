@@ -40,8 +40,9 @@ new-release: ## Init a new release stack: make new-release RELEASE=v0-7-0
 	@echo "Stack '$(RELEASE)' created and selected. Now set the required values:"
 	@echo "  pulumi config set --secret digitalocean:token <token>"
 	@echo "  pulumi config set --secret heart:influx-token  <token>"
-	@echo "  pulumi config set heart:project-name  Holo"
-	@echo "  pulumi config set heart:influx-bucket unyt-$(RELEASE)   # bucket must exist in InfluxDB"
+	@echo "  pulumi config set heart:project-name  unyt"
+	@echo "Metrics default to the shared 'unyt' InfluxDB bucket. To isolate this"
+	@echo "release's metrics, set heart:influx-bucket to a bucket that already exists."
 	@echo "Optional overrides (versions, endpoints, sizes, counts): see Pulumi.release.yaml.example"
 	@echo "Then:  make preview  &&  make up"
 

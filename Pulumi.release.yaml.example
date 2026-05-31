@@ -12,8 +12,9 @@
 #   pulumi config set heart:release v0-7-0
 #   pulumi up
 #
-# The InfluxDB bucket named by heart:influx-bucket must already exist in
-# InfluxDB - this program does not create it.
+# Metrics default to the shared "unyt" InfluxDB bucket. To isolate a release's
+# metrics, set heart:influx-bucket to a bucket that already exists in InfluxDB
+# (this program does not create it).
 #
 # Anything left unset falls back to the defaults in defaults.yaml (shown as the
 # values below). Only heart:release, heart:project-name, digitalocean:token and
@@ -37,7 +38,7 @@ config:
   heart:relay-url: https://iroh-relay-unyt.holochain.org
   heart:auth-server: https://hc-auth-iroh-unyt.holochain.org
 
-  # --- metrics (per-release bucket recommended; must exist in InfluxDB) ---
+  # --- metrics (defaults to shared "unyt"; override to isolate, bucket must exist) ---
   heart:influx-url: https://us-east-1-1.aws.cloud2.influxdata.com
   heart:influx-org: "711f755560a58686"
   heart:influx-bucket: unyt

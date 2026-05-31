@@ -21,7 +21,7 @@ Two release fleets therefore coexist cleanly in the same DigitalOcean project wi
   ```
 - A DigitalOcean API token and an SSH key already added to the DigitalOcean account.
 - The InfluxDB token for metrics shipping.
-- **The InfluxDB bucket for this release must already exist.** This program does not create it. A per-release bucket (e.g. `unyt-v0-7-0`) keeps each fleet's metrics isolated; create it in InfluxDB before deploying.
+- **Metrics default to the shared `unyt` InfluxDB bucket** — no setup needed. Optionally, to isolate a release's metrics, override `heart:influx-bucket` with a bucket that already exists in InfluxDB (this program does not create it).
 
 ## Steps
 
@@ -38,9 +38,10 @@ This runs `pulumi stack init`, selects the stack, sets `heart:release`, and prin
 ```bash
 pulumi config set --secret digitalocean:token   # paste DO token
 pulumi config set --secret heart:influx-token    # paste InfluxDB token
-pulumi config set heart:project-name  Holo
-pulumi config set heart:influx-bucket unyt-v0-7-0
+pulumi config set heart:project-name  unyt
 ```
+
+Metrics ship to the shared `unyt` InfluxDB bucket by default. To isolate this release's metrics instead, also `pulumi config set heart:influx-bucket <existing-bucket>`.
 
 Secrets are encrypted per-stack and cannot be copied from another stack's config file — set them fresh for each release.
 
