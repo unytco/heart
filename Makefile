@@ -1,69 +1,70 @@
-# Variables
-TEST_DIR := test
-TERRAFORM_DIR := terraform
+# heart — deploy helpers (Pulumi + DigitalOcean)
+#
+# One Pulumi stack per unyt release. Run these inside the dev shell so pulumi
+# and go are on PATH:  nix develop
+#
+# Target a specific stack without `pulumi stack select` by passing STACK=:
+#   make preview STACK=v0-7-0
+#
+# Full walkthrough: doc/deploy-new-release.md
 
-# Load environment variables if .env exists
-ifneq (,$(wildcard .env))
-    include .env
-    export
-endif
+STACK ?=
+PULUMI_STACK := $(if $(STACK),--stack $(STACK),)
 
-# Terraform var arguments
-TF_VARS = \
-	-var="do_token=$(DO_TOKEN)" \
-	-var="ssh_key_id=$(SSH_KEY_ID)" \
-	-var="node_name=$(NODE_NAME)" \
-	-var="holochain_version=$(HOLOCHAIN_VERSION)" \
-	-var="lair_version=$(LAIR_VERSION)" \
-	-var="droplet_size=$(DROPLET_SIZE)" \
-	-var="region=$(REGION)" \
-	-var="lair_password=$(LAIR_PASSWORD)" \
-	-var="holochain_password=$(HOLOCHAIN_PASSWORD)"
+.DEFAULT_GOAL := help
 
-deploy:
-	cd $(TERRAFORM_DIR) && terraform apply $(TF_VARS)
+help: ## Show this help
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
+		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-redeploy:
-	@# First ensure terraform is up-to-date
-	cd $(TERRAFORM_DIR) && terraform refresh $(TF_VARS)
-	@# Get the IP address
-	@IP=$$(cd $(TERRAFORM_DIR) && terraform show -json | jq -r '.values.root_module.resources[] | select(.type == "digitalocean_droplet") | .values.ipv4_address') && \
-	if [ -z "$$IP" ]; then \
-		echo "Error: Could not get droplet IP address" >&2; \
-		exit 1; \
-	fi && \
-	echo "Redeploying to $$IP..." && \
-	rsync -av scripts/ root@$$IP:/tmp/scripts/ && \
-	rsync -av services/ root@$$IP:/tmp/services/ && \
-	ssh root@$$IP \
-		"HOLOCHAIN_VERSION='$(HOLOCHAIN_VERSION)' \
-		LAIR_VERSION='$(LAIR_VERSION)' \
-		LAIR_PASSWORD='$(LAIR_PASSWORD)' \
-		HOLOCHAIN_PASSWORD='$(HOLOCHAIN_PASSWORD)' \
-		bash /tmp/scripts/setup.sh"
+## --- verify (no cloud calls) ---
 
-test:
-	./scripts/test_locally.sh
+build: ## Compile the Pulumi program
+	go build ./...
 
-# Development targets
-dev-init: clean-test test    # Clean and create new test environment
+vet: ## Run go vet
+	go vet ./...
 
-dev-rebuild:                 # Sync changes and rebuild
-	cd $(TEST_DIR) && vagrant rsync
-	cd $(TEST_DIR) && vagrant ssh -c "sudo nixos-rebuild switch"
+fmt: ## Format the Pulumi program
+	go fmt ./...
 
-dev-test:                   # Run tests
-	cd $(TEST_DIR) && vagrant rsync
-	cd $(TEST_DIR) && vagrant ssh -c "bash /vagrant/scripts/test.sh"
+## --- per-release deploy ---
 
-dev-shell:                  # SSH into VM
-	cd $(TEST_DIR) && vagrant ssh
+new-release: ## Init a new release stack: make new-release RELEASE=v0-7-0
+	@test -n "$(RELEASE)" || { echo "RELEASE is required, e.g. make new-release RELEASE=v0-7-0" >&2; exit 1; }
+	pulumi stack init $(RELEASE)
+	pulumi stack select $(RELEASE)
+	pulumi config set heart:release $(RELEASE)
+	@echo
+	@echo "Stack '$(RELEASE)' created and selected. Now set the required values:"
+	@echo "  pulumi config set --secret digitalocean:token <token>"
+	@echo "  pulumi config set --secret heart:influx-token  <token>"
+	@echo "  pulumi config set heart:project-name  Holo"
+	@echo "  pulumi config set heart:influx-bucket unyt-$(RELEASE)   # bucket must exist in InfluxDB"
+	@echo "Optional overrides (versions, endpoints, sizes, counts): see Pulumi.release.yaml.example"
+	@echo "Then:  make preview  &&  make up"
 
-dev-watch:                  # Watch for changes and auto-rebuild
-	./scripts/dev.sh
+preview: ## Preview changes for the selected stack (or STACK=...)
+	pulumi preview $(PULUMI_STACK)
 
-clean-test:
-	@echo "Running full cleanup..."
-	sudo ./scripts/cleanup.sh
+up: ## Deploy the selected stack (or STACK=...)
+	pulumi up $(PULUMI_STACK)
 
-.PHONY: deploy redeploy test dev-init dev-rebuild dev-test dev-shell dev-watch clean-test
+refresh: ## Reconcile state with real infrastructure (or STACK=...)
+	pulumi refresh $(PULUMI_STACK)
+
+destroy: ## Tear down the selected stack (or STACK=...)
+	pulumi destroy $(PULUMI_STACK)
+
+## --- inspect ---
+
+config: ## Show config for the selected stack (or STACK=...)
+	pulumi config $(PULUMI_STACK)
+
+stacks: ## List all stacks
+	pulumi stack ls
+
+current: ## Show the currently selected stack and its resources
+	pulumi stack $(PULUMI_STACK)
+
+.PHONY: help build vet fmt new-release preview up refresh destroy config stacks current

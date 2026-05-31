@@ -17,10 +17,10 @@ write_files:
         hostname = ""
 
       [[outputs.influxdb_v2]]
-        urls = ["https://us-east-1-1.aws.cloud2.influxdata.com"]
+        urls = ["{{ .InfluxURL }}"]
         token = "{{ .InfluxToken }}"
-        organization = "711f755560a58686"
-        bucket = "unyt"
+        organization = "{{ .InfluxOrg }}"
+        bucket = "{{ .InfluxBucket }}"
 
       [[inputs.cpu]]
         percpu = false
@@ -60,9 +60,9 @@ write_files:
       network:
         base64_auth_material_bootstrap: ~
         base64_auth_material_relay: ~
-        bootstrap_url: https://hc-auth-iroh-unyt.holochain.org/
-        signal_url: http://not-used:1234
-        relay_url: https://iroh-relay-unyt.holochain.org
+        bootstrap_url: {{ .BootstrapURL }}
+        signal_url: {{ .SignalURL }}
+        relay_url: {{ .RelayURL }}
         target_arc_factor: 1
         advanced: null
         request_timeout_s: 60
@@ -80,8 +80,8 @@ write_files:
       #!/usr/bin/env bash
       set -eo pipefail
 
-      HOLOCHAIN_VERSION="holochain-0.6.1"
-      HOLO_KEYUTIL_VERSION="v0.1.0"
+      HOLOCHAIN_VERSION="{{ .HolochainVersion }}"
+      HOLO_KEYUTIL_VERSION="{{ .HoloKeyutilVersion }}"
       HOLOCHAIN_DIR=/var/lib/holochain
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
@@ -180,7 +180,7 @@ write_files:
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
       ADMIN_PORT=8800
-      AUTH_SERVER=https://hc-auth-iroh-unyt.holochain.org
+      AUTH_SERVER={{ .AuthServer }}
 
       LAIR_URL=$(/usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" url)
       LAIR_PASSWORD=$(cat "${HOLOCHAIN_DIR}/lair-passphrase")
@@ -311,8 +311,8 @@ write_files:
       Group=root
       Environment="RUST_LOG=info"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL=1"
-      Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_HOST=https://us-east-1-1.aws.cloud2.influxdata.com"
-      Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_BUCKET=unyt"
+      Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_HOST={{ .InfluxURL }}"
+      Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_BUCKET={{ .InfluxBucket }}"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_TOKEN={{ .InfluxToken }}"
       ExecStart=/bin/bash -c 'printf "%%s" "$(cat /var/lib/holochain/lair-passphrase)" | /usr/local/bin/holochain --config-path /etc/holochain/conductor-config.yaml --piped'
       Restart=always

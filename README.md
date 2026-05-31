@@ -20,6 +20,7 @@ HEART is a toolkit for quickly setting up and managing Holochain nodes. It provi
 
 ## Documentation
 
+- **[Deploying a New Release Fleet](./doc/deploy-new-release.md)** - Stand up a dedicated set of servers for a new unyt version (one Pulumi stack per release)
 - **[Setup an Always-On Node](./doc/setup-always-on-node.md)** - Complete guide for setting up a production-ready Holochain node
 - [Setup A DO that is running a Holochain conductor](./doc/setup-do-holochain-server.md) - Technical details for server setup
 - [Setup Progenitor](./doc/setup-progenitor.md) - Setting up progenitor nodes specifically
@@ -27,7 +28,16 @@ HEART is a toolkit for quickly setting up and managing Holochain nodes. It provi
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and testing instructions.
+Work inside the dev shell so `pulumi` and `go` are on `PATH`:
+
+```shell
+nix develop
+make help      # list build + deploy targets
+make build     # compile the Pulumi program
+make vet       # go vet
+```
+
+See [Deploying a New Release Fleet](./doc/deploy-new-release.md) for the deploy workflow.
 
 ## Roadmap
 
@@ -59,19 +69,28 @@ pulumi config set --secret heart:influx-token
 Configure the project to use on Digital Ocean:
 
 ```shell
-pulumi config set project-name Holo
+pulumi config set heart:project-name Holo
+```
+
+Each release fleet runs in its own stack, identified by `heart:release` (this
+namespaces every droplet name and adds a `release:<x>` tag):
+
+```shell
+pulumi config set heart:release v0-7-0
 ```
 
 Configure the number of nodes, of each type:
 
 ```shell
-pulumi config set heart:heart-always-online-count 4                                                                                                                                                                                               
+pulumi config set heart:always-online-count 4
 pulumi config set heart:blockchain-bridging-count 1
 pulumi config set heart:unyt-bridging-count 1
-pulumi config set heart:heart-always-online-alt-count 4                                                                                                                                                                                               
-pulumi config set heart:blockchain-bridging-alt-count 1
-pulumi config set heart:unyt-bridging-alt-count 1
 ```
+
+All other per-release values (Holochain version, network endpoints, InfluxDB
+bucket, droplet sizes) are optional config keys with defaults baked into
+`main.go`. See [`Pulumi.release.yaml.example`](./Pulumi.release.yaml.example) for
+the full set.
 
 ## Node layout
 
@@ -127,25 +146,20 @@ hc sandbox call --running 8800 install-app \
     /path/to/your-app.happ
 ```
 
-## Cloud-init binaries
+## holo-keyutil
 
-The cloud-config for droplets embeds a pre-built `holo-keyutil` binary as base64.
-It provides two subcommands used during node registration:
+`holo-keyutil` provides two subcommands used during node registration:
 
 - `holo-keyutil sign` — signs data via lair IPC
 - `holo-keyutil extract-pubkey` — parses a Holochain `AgentPubKey` and extracts the raw ed25519 bytes
 
-The binary is built and published automatically by the `release-holo-keyutil` GitHub
-Actions workflow when a tag is pushed. Droplets download it directly from the release
-at first boot — nothing needs to be embedded in the cloud-config.
+It is built and published by the `release-holo-keyutil` GitHub Actions workflow when a
+tag is pushed. Droplets download the binary directly from that release at first boot;
+the version is controlled by the `heart:holo-keyutil-version` config key (default `v0.1.0`).
 
-To cut a release and update the cloud-config to point at it:
+To use a new build, cut a release and point a stack at it:
 
 ```shell
-git tag v0.1.0 && git push origin v0.1.0
-# wait for the Actions workflow to complete, then:
-./scripts/package-cloudinit-binaries.sh v0.1.0
+git tag v0.2.0 && git push origin v0.2.0   # wait for the Actions workflow to finish
+pulumi config set heart:holo-keyutil-version v0.2.0
 ```
-
-Commit the resulting `cloudinit/default/cloud-config.yaml` alongside the tag.
-Requires `sed`.
