@@ -8,15 +8,16 @@
 #   pulumi config set --secret digitalocean:token   <do-token>
 #   pulumi config set --secret heart:influx-token    <influx-token>
 #   # set the rest (or copy the non-secret keys below into Pulumi.v0-7-0.yaml):
+#   pulumi config set heart:project-name Holo
 #   pulumi config set heart:release v0-7-0
 #   pulumi up
 #
 # The InfluxDB bucket named by heart:influx-bucket must already exist in
 # InfluxDB - this program does not create it.
 #
-# Anything left unset falls back to the defaults baked into main.go (shown as
-# the values below). Only heart:release, heart:project-name, digitalocean:token
-# and heart:influx-token are required.
+# Anything left unset falls back to the defaults in defaults.yaml (shown as the
+# values below). Only heart:release, heart:project-name, digitalocean:token and
+# heart:influx-token are required.
 config:
   # --- required ---
   heart:release: v0-7-0                 # namespaces every droplet name + a release:<x> tag
@@ -45,5 +46,9 @@ config:
   heart:always-online-count: "1"
   heart:blockchain-bridging-count: "1"
   heart:unyt-bridging-count: "1"
+  heart:hf-swapper-count: "1"
+  heart:hash-explorer-count: "1"
   heart:always-online-size: s-2vcpu-4gb
   heart:bridging-size: s-4vcpu-8gb
+  heart:hf-swapper-size: s-2vcpu-4gb
+  heart:hash-explorer-size: s-2vcpu-4gb

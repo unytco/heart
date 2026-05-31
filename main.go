@@ -10,7 +10,26 @@ import (
 
 	"github.com/pulumi/pulumi-digitalocean/sdk/v4/go/digitalocean"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"gopkg.in/yaml.v3"
 )
+
+// defaultsFile holds the default value for every optional heart config key. A
+// per-stack `pulumi config set heart:<key> ...` always overrides what is here.
+const defaultsFile = "defaults.yaml"
+
+// loadDefaults reads defaultsFile into a key -> value map. Keys are bare (no
+// "heart:" prefix) and match the keys passed to cfgOr / cfgIntOr.
+func loadDefaults(path string) (map[string]string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read defaults file %s: %w", path, err)
+	}
+	defaults := map[string]string{}
+	if err := yaml.Unmarshal(raw, &defaults); err != nil {
+		return nil, fmt.Errorf("failed to parse defaults file %s: %w", path, err)
+	}
+	return defaults, nil
+}
 
 // releasePattern is the set of characters allowed in heart:release. The value is
 // interpolated into both droplet names and the release:<x> tag, and DigitalOcean
@@ -49,6 +68,28 @@ var regions = []digitalocean.Region{
 	digitalocean.RegionBLR1,
 }
 
+// nodeType describes one kind of droplet in a release fleet. All types boot the
+// same cloud-config (Holochain conductor + lair + registration); they differ
+// only in name/tag, size, how many to create, and backup policy.
+//
+// To add a new server type: append an entry here and add its <countKey> and
+// <sizeKey> to defaults.yaml. Nothing else needs to change.
+type nodeType struct {
+	name         string // droplet name + tag prefix, e.g. "heart-always-online"
+	sizeKey      string // config/defaults key for the droplet size slug
+	countKey     string // config/defaults key for how many to create
+	maxCount     int    // 0 = unlimited; >0 rejects counts above the cap
+	weeklyBackup bool   // set a weekly backup policy (otherwise DO's default)
+}
+
+var nodeTypes = []nodeType{
+	{name: "heart-always-online", sizeKey: "always-online-size", countKey: "always-online-count", weeklyBackup: true},
+	{name: "blockchain-bridging", sizeKey: "bridging-size", countKey: "blockchain-bridging-count", maxCount: 1},
+	{name: "unyt-bridging", sizeKey: "bridging-size", countKey: "unyt-bridging-count", maxCount: 1},
+	{name: "hf-swapper", sizeKey: "hf-swapper-size", countKey: "hf-swapper-count", weeklyBackup: true},
+	{name: "hash-explorer", sizeKey: "hash-explorer-size", countKey: "hash-explorer-count", weeklyBackup: true},
+}
+
 // cfgRequired returns the value for heart:<key> or an error if it is unset.
 func cfgRequired(ctx *pulumi.Context, key string) (string, error) {
 	v, ok := ctx.GetConfig("heart:" + key)
@@ -58,20 +99,26 @@ func cfgRequired(ctx *pulumi.Context, key string) (string, error) {
 	return v, nil
 }
 
-// cfgOr returns the value for heart:<key>, or def (logging the fallback) when unset.
-func cfgOr(ctx *pulumi.Context, key, def string) (string, error) {
+// cfgOr returns the value for heart:<key>, falling back to the default from
+// defaults.yaml (logging the fallback) when the stack does not set it. It is an
+// error for a key to have neither a stack value nor a default.
+func cfgOr(ctx *pulumi.Context, defaults map[string]string, key string) (string, error) {
 	if v, ok := ctx.GetConfig("heart:" + key); ok {
 		return v, nil
 	}
-	if err := ctx.Log.Info(fmt.Sprintf("config value 'heart:%s' not set, defaulting to %q", key, def), nil); err != nil {
+	def, ok := defaults[key]
+	if !ok {
+		return "", fmt.Errorf("config value 'heart:%s' is not set and has no default in %s", key, defaultsFile)
+	}
+	if err := ctx.Log.Info(fmt.Sprintf("config value 'heart:%s' not set, defaulting to %q (from %s)", key, def, defaultsFile), nil); err != nil {
 		return "", err
 	}
 	return def, nil
 }
 
-// cfgIntOr returns the integer value for heart:<key>, or def when unset.
-func cfgIntOr(ctx *pulumi.Context, key string, def int) (int, error) {
-	s, err := cfgOr(ctx, key, strconv.Itoa(def))
+// cfgIntOr returns the integer value for heart:<key>, falling back to defaults.yaml.
+func cfgIntOr(ctx *pulumi.Context, defaults map[string]string, key string) (int, error) {
+	s, err := cfgOr(ctx, defaults, key)
 	if err != nil {
 		return 0, err
 	}
@@ -131,39 +178,44 @@ func createFleet(ctx *pulumi.Context) (pulumi.StringArray, error) {
 		return nil, err
 	}
 
-	holochainVersion, err := cfgOr(ctx, "holochain-version", "holochain-0.6.1")
+	defaults, err := loadDefaults(defaultsFile)
 	if err != nil {
 		return nil, err
 	}
-	holoKeyutilVersion, err := cfgOr(ctx, "holo-keyutil-version", "v0.1.0")
+
+	holochainVersion, err := cfgOr(ctx, defaults, "holochain-version")
 	if err != nil {
 		return nil, err
 	}
-	bootstrapURL, err := cfgOr(ctx, "bootstrap-url", "https://hc-auth-iroh-unyt.holochain.org/")
+	holoKeyutilVersion, err := cfgOr(ctx, defaults, "holo-keyutil-version")
 	if err != nil {
 		return nil, err
 	}
-	signalURL, err := cfgOr(ctx, "signal-url", "http://not-used:1234")
+	bootstrapURL, err := cfgOr(ctx, defaults, "bootstrap-url")
 	if err != nil {
 		return nil, err
 	}
-	relayURL, err := cfgOr(ctx, "relay-url", "https://iroh-relay-unyt.holochain.org")
+	signalURL, err := cfgOr(ctx, defaults, "signal-url")
 	if err != nil {
 		return nil, err
 	}
-	authServer, err := cfgOr(ctx, "auth-server", "https://hc-auth-iroh-unyt.holochain.org")
+	relayURL, err := cfgOr(ctx, defaults, "relay-url")
 	if err != nil {
 		return nil, err
 	}
-	influxURL, err := cfgOr(ctx, "influx-url", "https://us-east-1-1.aws.cloud2.influxdata.com")
+	authServer, err := cfgOr(ctx, defaults, "auth-server")
 	if err != nil {
 		return nil, err
 	}
-	influxOrg, err := cfgOr(ctx, "influx-org", "711f755560a58686")
+	influxURL, err := cfgOr(ctx, defaults, "influx-url")
 	if err != nil {
 		return nil, err
 	}
-	influxBucket, err := cfgOr(ctx, "influx-bucket", "unyt")
+	influxOrg, err := cfgOr(ctx, defaults, "influx-org")
+	if err != nil {
+		return nil, err
+	}
+	influxBucket, err := cfgOr(ctx, defaults, "influx-bucket")
 	if err != nil {
 		return nil, err
 	}
@@ -193,104 +245,51 @@ func createFleet(ctx *pulumi.Context) (pulumi.StringArray, error) {
 		sshFingerprints = append(sshFingerprints, key.Fingerprint)
 	}
 
-	alwaysOnlineSize, err := cfgOr(ctx, "always-online-size", string(digitalocean.DropletSlugDropletS2VCPU4GB))
-	if err != nil {
-		return nil, err
-	}
-	bridgingSize, err := cfgOr(ctx, "bridging-size", string(digitalocean.DropletSlugDropletS4VCPU8GB))
-	if err != nil {
-		return nil, err
-	}
-
-	alwaysOnlineCount, err := cfgIntOr(ctx, "always-online-count", 1)
-	if err != nil {
-		return nil, err
-	}
-	blockchainBridgingCount, err := cfgIntOr(ctx, "blockchain-bridging-count", 1)
-	if err != nil {
-		return nil, err
-	}
-	if blockchainBridgingCount > 1 {
-		// The software does not support this
-		return nil, fmt.Errorf("config value 'heart:blockchain-bridging-count' cannot be greater than 1, got %d", blockchainBridgingCount)
-	}
-	unytBridgingCount, err := cfgIntOr(ctx, "unyt-bridging-count", 1)
-	if err != nil {
-		return nil, err
-	}
-	if unytBridgingCount > 1 {
-		// The software does not support this
-		return nil, fmt.Errorf("config value 'heart:unyt-bridging-count' cannot be greater than 1, got %d", unytBridgingCount)
-	}
-
 	var urns pulumi.StringArray
-
-	// always-online droplets
-	for i := 1; i <= alwaysOnlineCount; i++ {
-		name := fmt.Sprintf("heart-always-online-%s-%d", release, i)
-		droplet, err := digitalocean.NewDroplet(ctx, name, &digitalocean.DropletArgs{
-			Image:      pulumi.String("ubuntu-24-04-x64"),
-			Name:       pulumi.String(name),
-			Region:     pulumi.String(regions[i%len(regions)]),
-			Size:       pulumi.String(alwaysOnlineSize),
-			Ipv6:       pulumi.Bool(true),
-			Tags:       pulumi.StringArray{pulumi.String("heart-always-online"), pulumi.String("release:" + release)},
-			SshKeys:    pulumi.ToStringArray(sshFingerprints),
-			Monitoring: pulumi.Bool(true),
-			Backups:    pulumi.Bool(true),
-			BackupPolicy: &digitalocean.DropletBackupPolicyArgs{
-				Plan:    pulumi.String("weekly"),
-				Weekday: pulumi.String("TUE"),
-				Hour:    pulumi.Int(8),
-			},
-			UserData: pulumi.String(cloudInit),
-		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
+	for _, nt := range nodeTypes {
+		size, err := cfgOr(ctx, defaults, nt.sizeKey)
 		if err != nil {
 			return nil, err
 		}
-		urns = append(urns, droplet.DropletUrn)
-	}
-
-	// blockchain-bridging droplets
-	for i := 1; i <= blockchainBridgingCount; i++ {
-		name := fmt.Sprintf("blockchain-bridging-%s-%d", release, i)
-		droplet, err := digitalocean.NewDroplet(ctx, name, &digitalocean.DropletArgs{
-			Image:      pulumi.String("ubuntu-24-04-x64"),
-			Name:       pulumi.String(name),
-			Region:     pulumi.String(regions[i%len(regions)]),
-			Size:       pulumi.String(bridgingSize),
-			Ipv6:       pulumi.Bool(true),
-			Tags:       pulumi.StringArray{pulumi.String("blockchain-bridging"), pulumi.String("release:" + release)},
-			SshKeys:    pulumi.ToStringArray(sshFingerprints),
-			Monitoring: pulumi.Bool(true),
-			Backups:    pulumi.Bool(true),
-			UserData:   pulumi.String(cloudInit),
-		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
+		count, err := cfgIntOr(ctx, defaults, nt.countKey)
 		if err != nil {
 			return nil, err
 		}
-		urns = append(urns, droplet.DropletUrn)
-	}
-
-	// unyt-bridging droplets
-	for i := 1; i <= unytBridgingCount; i++ {
-		name := fmt.Sprintf("unyt-bridging-%s-%d", release, i)
-		droplet, err := digitalocean.NewDroplet(ctx, name, &digitalocean.DropletArgs{
-			Image:      pulumi.String("ubuntu-24-04-x64"),
-			Name:       pulumi.String(name),
-			Region:     pulumi.String(regions[i%len(regions)]),
-			Size:       pulumi.String(bridgingSize),
-			Ipv6:       pulumi.Bool(true),
-			Tags:       pulumi.StringArray{pulumi.String("unyt-bridging"), pulumi.String("release:" + release)},
-			SshKeys:    pulumi.ToStringArray(sshFingerprints),
-			Monitoring: pulumi.Bool(true),
-			Backups:    pulumi.Bool(true),
-			UserData:   pulumi.String(cloudInit),
-		}, pulumi.IgnoreChanges([]string{"sshKeys"}))
-		if err != nil {
-			return nil, err
+		if count < 0 {
+			return nil, fmt.Errorf("config value 'heart:%s' cannot be negative, got %d", nt.countKey, count)
 		}
-		urns = append(urns, droplet.DropletUrn)
+		if nt.maxCount > 0 && count > nt.maxCount {
+			// The software does not support more than maxCount of this type.
+			return nil, fmt.Errorf("config value 'heart:%s' cannot be greater than %d, got %d", nt.countKey, nt.maxCount, count)
+		}
+
+		for i := 1; i <= count; i++ {
+			name := fmt.Sprintf("%s-%s-%d", nt.name, release, i)
+			args := &digitalocean.DropletArgs{
+				Image:      pulumi.String("ubuntu-24-04-x64"),
+				Name:       pulumi.String(name),
+				Region:     pulumi.String(regions[i%len(regions)]),
+				Size:       pulumi.String(size),
+				Ipv6:       pulumi.Bool(true),
+				Tags:       pulumi.StringArray{pulumi.String(nt.name), pulumi.String("release:" + release)},
+				SshKeys:    pulumi.ToStringArray(sshFingerprints),
+				Monitoring: pulumi.Bool(true),
+				Backups:    pulumi.Bool(true),
+				UserData:   pulumi.String(cloudInit),
+			}
+			if nt.weeklyBackup {
+				args.BackupPolicy = &digitalocean.DropletBackupPolicyArgs{
+					Plan:    pulumi.String("weekly"),
+					Weekday: pulumi.String("TUE"),
+					Hour:    pulumi.Int(8),
+				}
+			}
+			droplet, err := digitalocean.NewDroplet(ctx, name, args, pulumi.IgnoreChanges([]string{"sshKeys"}))
+			if err != nil {
+				return nil, err
+			}
+			urns = append(urns, droplet.DropletUrn)
+		}
 	}
 
 	return urns, nil

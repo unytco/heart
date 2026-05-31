@@ -1,0 +1,36 @@
+# Default values for the optional heart config keys, read by main.go at deploy time.
+#
+# A per-stack override always wins:  pulumi config set heart:<key> <value>
+# Edit a value here to change the default for every release that doesn't override it.
+#
+# NOT listed here (required per stack, no default): release, project-name, influx-token.
+# Counts are quoted so they parse as strings, matching how Pulumi stores config.
+
+holochain-version: holochain-0.6.1
+holo-keyutil-version: v0.1.0
+
+# Network identity. Override per release for an isolated network (and remember the
+# DNA network seed is applied at .happ install time, not here).
+bootstrap-url: https://hc-auth-iroh-unyt.holochain.org/
+signal-url: http://not-used:1234
+relay-url: https://iroh-relay-unyt.holochain.org
+auth-server: https://hc-auth-iroh-unyt.holochain.org
+
+# Metrics. Set heart:influx-bucket per release (e.g. unyt-v0-7-0); the bucket must
+# already exist in InfluxDB.
+influx-url: https://us-east-1-1.aws.cloud2.influxdata.com
+influx-org: "711f755560a58686"
+influx-bucket: unyt
+
+# Droplet sizes (DigitalOcean slugs).
+always-online-size: s-2vcpu-4gb
+bridging-size: s-4vcpu-8gb
+hf-swapper-size: s-2vcpu-4gb
+hash-explorer-size: s-2vcpu-4gb
+
+# Node counts. blockchain-bridging and unyt-bridging are capped at 1.
+always-online-count: "2"
+blockchain-bridging-count: "1"
+unyt-bridging-count: "1"
+hf-swapper-count: "1"
+hash-explorer-count: "1"

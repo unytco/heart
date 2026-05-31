@@ -180,7 +180,7 @@ write_files:
       LAIR_DIR=${HOLOCHAIN_DIR}/lair
       CONFIG_FILE=/etc/holochain/conductor-config.yaml
       ADMIN_PORT=8800
-      AUTH_SERVER={{ .AuthServer }}
+      AUTH_SERVER="{{ .AuthServer }}"
 
       LAIR_URL=$(/usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" url)
       LAIR_PASSWORD=$(cat "${HOLOCHAIN_DIR}/lair-passphrase")

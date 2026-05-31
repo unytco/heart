@@ -32,6 +32,7 @@ fmt: ## Format the Pulumi program
 
 new-release: ## Init a new release stack: make new-release RELEASE=v0-7-0
 	@test -n "$(RELEASE)" || { echo "RELEASE is required, e.g. make new-release RELEASE=v0-7-0" >&2; exit 1; }
+	@echo "$(RELEASE)" | grep -Eq '^[a-zA-Z0-9_-]+$$' || { echo "RELEASE must match ^[a-zA-Z0-9_-]+\$$ (letters, digits, '-', '_') - e.g. v0-7-0, not v0.7.0" >&2; exit 1; }
 	pulumi stack init $(RELEASE)
 	pulumi stack select $(RELEASE)
 	pulumi config set heart:release $(RELEASE)

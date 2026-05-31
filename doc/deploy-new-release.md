@@ -46,7 +46,7 @@ Secrets are encrypted per-stack and cannot be copied from another stack's config
 
 ### 3. (Optional) Override anything else
 
-Everything else has a default baked into `main.go`. Override only what differs for this release. The full list with defaults is in [`Pulumi.release.yaml.example`](../Pulumi.release.yaml.example). Common ones:
+Everything else has a default in [`defaults.yaml`](../defaults.yaml) (edit that file to change a default for all releases). Override only what differs for this release with `pulumi config set`. The full list of keys is in [`Pulumi.release.yaml.example`](../Pulumi.release.yaml.example). Common ones:
 
 ```bash
 # Pin a different Holochain version for this release
