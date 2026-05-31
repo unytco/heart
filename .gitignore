@@ -1,10 +1,3 @@
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-terraform.tfvars
-.terraform.lock.hcl
-
 # SSH keys
 *.pem
 id_rsa*
@@ -12,17 +5,13 @@ id_rsa*
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
 
-# Testing
-test/
-.vagrant/
-
-# Binary
-bin/hi 
+# `go build` output (module is named `heart`)
+/heart
 
 # NixOS
-result 
+result
 
 # Environment
 .env

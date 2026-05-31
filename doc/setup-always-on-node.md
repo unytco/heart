@@ -29,9 +29,14 @@ pulumi config set --secret heart:influx-token
 # Set the DigitalOcean project to assign droplets to
 pulumi config set heart:project-name Holo
 
+# Name this release (namespaces droplet names + adds a release:<x> tag)
+pulumi config set heart:release v0-7-0
+
 # Set the number of always-online nodes to deploy
-pulumi config set heart:heart-always-online-count 1
+pulumi config set heart:always-online-count 1
 ```
+
+> Deploying servers for a **new** unyt version? Use a dedicated stack per release — see [Deploying a New Release Fleet](./deploy-new-release.md).
 
 ### Deploy
 

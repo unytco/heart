@@ -35,6 +35,7 @@
               pulumiBundle
               netcat
               yq
+              go
               jq
               python315
               curl
