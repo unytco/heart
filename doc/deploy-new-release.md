@@ -69,6 +69,8 @@ make preview      # review the plan
 make up           # create the droplets
 ```
 
+`make up` also writes the provisioned IPv4 addresses to `releases/<release>/ips.json`, keyed by server name (e.g. `heart-always-online-1`, `hf-swapper-1`, `blockchain-bridging-1`). The automation repo references this file by key, so you don't paste IPs by hand — commit it alongside the release. Inspect it with `jq . releases/<release>/ips.json`.
+
 Cloud-init runs on first boot to install Holochain, Lair, Telegraf, and the registration service. Then follow [Setup an Always-On Node](./setup-always-on-node.md) from Part 2 (agent keys) onward to bring each node into service and install the `.happ`.
 
 ## Network isolation caveat

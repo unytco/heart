@@ -48,8 +48,12 @@ new-release: ## Init a new release stack: make new-release RELEASE=v0-7-0
 preview: ## Preview changes for the selected stack (or STACK=...)
 	pulumi preview $(PULUMI_STACK)
 
-up: ## Deploy the selected stack (or STACK=...)
+up: ## Deploy the selected stack (or STACK=...) and write its release IP file
 	pulumi up $(PULUMI_STACK)
+	@rel=$$(pulumi config get heart:release $(PULUMI_STACK)); \
+	mkdir -p releases/$$rel; \
+	pulumi stack output --json ips $(PULUMI_STACK) > releases/$$rel/ips.json; \
+	echo "Wrote releases/$$rel/ips.json"
 
 refresh: ## Reconcile state with real infrastructure (or STACK=...)
 	pulumi refresh $(PULUMI_STACK)

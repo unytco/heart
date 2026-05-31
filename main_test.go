@@ -21,6 +21,24 @@ func TestValidateRelease(t *testing.T) {
 	}
 }
 
+func TestIpsKey(t *testing.T) {
+	cases := map[string]struct {
+		nt   nodeType
+		i    int
+		want string
+	}{
+		"always-online":    {nodeType{name: "heart-always-online"}, 1, "heart-always-online-1"},
+		"always-online-2":  {nodeType{name: "heart-always-online"}, 2, "heart-always-online-2"},
+		"singleton bridge": {nodeType{name: "blockchain-bridging", maxCount: 1}, 1, "blockchain-bridging-1"},
+		"hash-explorer":    {nodeType{name: "hash-explorer"}, 1, "hash-explorer-1"},
+	}
+	for name, c := range cases {
+		if got := ipsKey(c.nt, c.i); got != c.want {
+			t.Errorf("%s: ipsKey(%q, %d) = %q, want %q", name, c.nt.name, c.i, got, c.want)
+		}
+	}
+}
+
 func TestLoadDefaults(t *testing.T) {
 	defaults, err := loadDefaults(defaultsFile)
 	if err != nil {
