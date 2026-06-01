@@ -16,8 +16,8 @@ signal-url: http://not-used:1234
 relay-url: https://iroh-relay-unyt.holochain.org
 auth-server: https://hc-auth-iroh-unyt.holochain.org
 
-# Metrics. Set heart:influx-bucket per release (e.g. unyt-v0-7-0); the bucket must
-# already exist in InfluxDB.
+# Metrics. Defaults to the shared "unyt" bucket. To isolate a release's metrics,
+# override heart:influx-bucket per stack with a bucket that already exists in InfluxDB.
 influx-url: https://us-east-1-1.aws.cloud2.influxdata.com
 influx-org: "711f755560a58686"
 influx-bucket: unyt

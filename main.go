@@ -246,6 +246,10 @@ func createFleet(ctx *pulumi.Context) (pulumi.StringArray, error) {
 	}
 
 	var urns pulumi.StringArray
+	// ips maps a release-independent server key (e.g. heart-always-online-1) to its
+	// public IPv4, exported as the "ips" stack output. `make up` writes this to
+	// releases/<release>/ips.json, which the automation repo references by key.
+	ips := pulumi.Map{}
 	for _, nt := range nodeTypes {
 		size, err := cfgOr(ctx, defaults, nt.sizeKey)
 		if err != nil {
@@ -289,10 +293,19 @@ func createFleet(ctx *pulumi.Context) (pulumi.StringArray, error) {
 				return nil, err
 			}
 			urns = append(urns, droplet.DropletUrn)
+			ips[ipsKey(nt, i)] = droplet.Ipv4Address
 		}
 	}
 
+	ctx.Export("ips", ips)
+
 	return urns, nil
+}
+
+// ipsKey is the release-independent key used for a node's IPv4 in the "ips"
+// stack output (and thus in releases/<release>/ips.json), e.g. "heart-always-online-1".
+func ipsKey(nt nodeType, i int) string {
+	return fmt.Sprintf("%s-%d", nt.name, i)
 }
 
 // renderCloudInit reads the cloud-config template and renders it with data.

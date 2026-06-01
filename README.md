@@ -87,12 +87,12 @@ pulumi config set heart:blockchain-bridging-count 1
 pulumi config set heart:unyt-bridging-count 1
 ```
 
-All other per-release values (Holochain version, network endpoints, droplet
-sizes) are optional config keys whose defaults live in
+All other per-release values (Holochain version, network endpoints, InfluxDB
+bucket, droplet sizes) are optional config keys whose defaults live in
 [`defaults.yaml`](./defaults.yaml) — edit that file to change a default for all
-releases. One exception: `heart:influx-bucket` defaults to the shared `unyt`
-bucket, so set it per release (e.g. `unyt-v0-7-0`, created in InfluxDB first) to
-keep each fleet's metrics isolated. See
+releases. Metrics ship to the shared `unyt` bucket by default; override
+`heart:influx-bucket` (with a bucket that already exists in InfluxDB) to isolate
+a release's metrics. See
 [`Pulumi.release.yaml.example`](./Pulumi.release.yaml.example) for the full set
 of keys.
 
