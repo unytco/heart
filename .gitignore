@@ -24,3 +24,5 @@ result
 
 # Rust target directory
 holo-keyutil/target/
+
+credentials.json

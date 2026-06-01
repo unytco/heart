@@ -36,6 +36,7 @@ new-release: ## Init a new release stack: make new-release RELEASE=v0-7-0
 	pulumi stack init $(RELEASE)
 	pulumi stack select $(RELEASE)
 	pulumi config set heart:release $(RELEASE)
+	pulumi config set heart:project-name unyt
 	@echo
 	@echo "Stack '$(RELEASE)' created and selected. Now set the required values:"
 	@echo "  pulumi config set --secret digitalocean:token <token>"
@@ -62,6 +63,21 @@ refresh: ## Reconcile state with real infrastructure (or STACK=...)
 destroy: ## Tear down the selected stack (or STACK=...)
 	pulumi destroy $(PULUMI_STACK)
 
+## --- cloudflare tunnel secrets ---
+
+set-tunnel-secret: ## Seed CF tunnel cert+creds into a stack from raw files: make set-tunnel-secret TUNNEL=unyt-tunnel CERT=cert.pem CREDS=creds.json [STACK=…]
+	@test -n "$(TUNNEL)" || { echo "TUNNEL is required, e.g. TUNNEL=unyt-tunnel (must match .tunnel.tunnel_name in the automation config)" >&2; exit 1; }
+	@test -n "$(CERT)"   || { echo "CERT is required: path to the raw cert.pem" >&2; exit 1; }
+	@test -n "$(CREDS)"  || { echo "CREDS is required: path to the raw <tunnel>-credentials.json" >&2; exit 1; }
+	@test -f "$(CERT)"   || { echo "CERT file not found: $(CERT)" >&2; exit 1; }
+	@test -f "$(CREDS)"  || { echo "CREDS file not found: $(CREDS)" >&2; exit 1; }
+	@jq -e . "$(CREDS)" >/dev/null 2>&1 || { echo "CREDS is not valid JSON: $(CREDS)" >&2; exit 1; }
+	base64 -w0 "$(CERT)"  | pulumi config set --secret heart:cf-cert-pem $(PULUMI_STACK) --
+	base64 -w0 "$(CREDS)" | pulumi config set --secret heart:$(TUNNEL)-credentials-json $(PULUMI_STACK) --
+	@echo
+	@echo "Seeded heart:cf-cert-pem and heart:$(TUNNEL)-credentials-json$(if $(STACK), on stack $(STACK),)."
+	@echo "Pull them onto this machine with:  (cd ../automation && make pull-secrets$(if $(STACK), PULUMI_STACK=$(STACK),))"
+
 ## --- inspect ---
 
 config: ## Show config for the selected stack (or STACK=...)
@@ -73,4 +89,4 @@ stacks: ## List all stacks
 current: ## Show the currently selected stack and its resources
 	pulumi stack $(PULUMI_STACK)
 
-.PHONY: help build vet fmt new-release preview up refresh destroy config stacks current
+.PHONY: help build vet fmt new-release preview up refresh destroy set-tunnel-secret config stacks current
