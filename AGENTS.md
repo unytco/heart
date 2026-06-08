@@ -1,12 +1,10 @@
 # heart — Agent Instructions
 
+> **This repo follows the workshop root's patterns — it does not define its own.** Development workflow, process, changelog conventions, and spec/feature-doc discipline live in the workshop: [`CLAUDE.md`](../CLAUDE.md), [`AGENTS.md`](../AGENTS.md), [`documentation/DEVELOPMENT_WORKFLOW.md`](../documentation/DEVELOPMENT_WORKFLOW.md). Below is only what's specific to THIS repo.
+
 ## Purpose
 
-**HEART** (Holochain Environment & Agent Runtime Toolkit) is a Pulumi (Go) program that provisions and manages Holochain nodes on DigitalOcean via cloud-init. Each node is an Ubuntu 24.04 droplet that boots a pinned Holochain + Lair Keystore, ships metrics to InfluxDB via Telegraf, and self-registers against the auth server on first boot. Every platform release runs on its own dedicated fleet, managed as **one Pulumi stack per release**, so release fleets coexist without name collisions or downtime. The repo also ships `holo-keyutil`, a small Rust helper (agent-key utilities) pulled onto droplets at first boot.
-
-## Classification
-
-`service` — provisions and runs infrastructure. Orchestrated alongside [`automation/`](../automation/), which consumes its output.
+`service` — **HEART** (Holochain Environment & Agent Runtime Toolkit) is a Pulumi (Go) program that provisions and manages Holochain nodes on DigitalOcean via cloud-init. Each node is an Ubuntu 24.04 droplet that boots a pinned Holochain + Lair Keystore, ships metrics to InfluxDB via Telegraf, and self-registers against the auth server on first boot. Every platform release runs on its own dedicated fleet, managed as **one Pulumi stack per release**, so release fleets coexist without name collisions or downtime. The repo also ships `holo-keyutil`, a small Rust helper (agent-key utilities) pulled onto droplets at first boot.
 
 ## Stack
 
@@ -53,16 +51,6 @@ make up                             # create droplets; writes releases/<release>
 
 Droplets boot from the `cloudinit/cloud-config.yaml` template (rendered by Pulumi). The Holochain binary version is the stack key `heart:holochain-version` (default in `defaults.yaml`), rendered into cloud-init as `HOLOCHAIN_VERSION` — this is the pin the [`upgrade-holochain-version`](../.claude/skills/upgrade-holochain-version/SKILL.md) skill bumps.
 
-## Related repos in workshop
-
-- [`automation/`](../automation/) reads heart's `releases/<release>/ips.json` (keyed by `server.heart_node`); `make pull-secrets` there materializes CF tunnel secrets from this stack.
-- `holo-keyutil` pins `lair_keystore_api` / `holo_hash` — bump them in lockstep with the rest of the workshop during a Holochain upgrade.
-- See workshop [`AGENTS.md`](../AGENTS.md) for the full map.
-
-## Changelog
-
-File: [`./CHANGELOG.md`](./CHANGELOG.md). Format: [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), `## [Unreleased]` at the top, standard subsections (Added/Changed/Deprecated/Removed/Fixed/Security). One bullet per agent change, ≤120 chars, present-tense imperative; branch-type → section mapping per [workshop `docs/WORKSHOP_WORKFLOW.md § Changelog conventions`](../docs/WORKSHOP_WORKFLOW.md). Call out **operator-impacting** changes (new stack config keys, changed droplet sizing/counts, cloud-init changes) under `### Changed`.
-
 ## Repo-specific rules
 
 - **One Pulumi stack per release.** Every DO resource is namespaced by `heart:release` (droplet names, `release:<release>` tags). Never reuse a stack across releases — that namespacing is exactly what lets fleets coexist.
@@ -70,7 +58,3 @@ File: [`./CHANGELOG.md`](./CHANGELOG.md). Format: [Keep a Changelog 1.1.0](https
 - **Node types are defined in `main.go`.** The five types (`heart-always-online`, `blockchain-bridging`, `unyt-bridging`, `hf-swapper`, `hash-explorer`) plus their sizing/count keys in `defaults.yaml`; adding a type means editing both.
 - **Required per-stack config** (`heart:release`, `heart:project-name`, `digitalocean:token`, `heart:influx-token`) has no default — Pulumi errors at preview if missing. Everything else falls back to `defaults.yaml`.
 - **Secrets are gitignored** (`*.pem`, `*.key`, `id_rsa*`, `.env`, `credentials.json`) and blocked from agent reads. Don't add them to the repo or echo them.
-
-## Lessons learned
-
-_Append entries here whenever an agent (or human) loses time to something a guardrail would have prevented. Keep each entry: date, short symptom, concrete fix._
