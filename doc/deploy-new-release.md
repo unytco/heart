@@ -146,6 +146,16 @@ The gateway's DNA registration **auto-resolves** the live DNA hash from the node
 
 **Note on per-release config:** the per-node IP path is also derived from `release.json` — `resolve_server_ip` builds `heart/releases/<release>/ips.json` from `release_version` (dots→dashes), so the configs carry no hardcoded release label. Bumping `release.json` is the single edit that repoints the whole fleet at the new release. (`server.heart_ips_file` can still be set on a config to override the derived path.)
 
+### 8. Verify the deploy is complete
+
+A node that booted isn't a node that's healthy — confirm each new node before declaring the release deployed:
+
+- **Conductor + app:** the registration service registered the node and the agent's app is installed and running (the `make <role>` results carry the agent key + DNA hash).
+- **Metrics shipping:** check the conductor / Telegraf logs for `write metrics error err=ApiError(401)`. A 401 means the conductor reaches InfluxDB but `heart:influx-token` is rejected for the `unyt` bucket — metrics are dark. **Fix it here, not later:** compare `pulumi config get heart:influx-token` against a known-good release's stack; if they differ, copy the good token; if they match, the token lacks write on the `unyt` bucket (fix on the InfluxDB side). Then reach the live nodes — patch `/etc/telegraf/telegraf.conf` + the holochain systemd env and restart those services, because the token is baked into cloud-init UserData, which only runs at first boot (a stack-only `pulumi config set` never reaches running nodes without a reprovision).
+- **Bridge / gateway:** the bridge/swap flow from Step 7.5 still passes, and (for `hash-explorer`) the tunnel + gateway respond.
+
+A deploy-surfaced issue is fixed in the deploy — don't ship a release with any of these failing, and don't park it as backlog.
+
 ## Network isolation caveat
 
 Setting `heart:bootstrap-url` / `heart:relay-url` / `heart:auth-server` controls which network *endpoints* the conductors use. It does **not** by itself put a release on a separate Holochain network: peers only segregate by DNA, which is determined by the **network seed applied when the `.happ` is installed** (the manual install step), not by this Pulumi config. If two releases share the same bootstrap/relay endpoints *and* the same network seed, their nodes will still gossip. Decide per release whether it needs its own endpoints, its own seed, or both.
