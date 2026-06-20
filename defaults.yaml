@@ -27,6 +27,7 @@ always-online-size: s-2vcpu-4gb
 bridging-size: s-4vcpu-8gb
 hf-swapper-size: s-2vcpu-4gb
 hash-explorer-size: s-2vcpu-4gb
+notary-size: s-2vcpu-4gb
 
 # Node counts. blockchain-bridging and unyt-bridging are capped at 1.
 always-online-count: "2"
@@ -34,3 +35,4 @@ blockchain-bridging-count: "1"
 unyt-bridging-count: "1"
 hf-swapper-count: "1"
 hash-explorer-count: "1"
+notary-count: "2"  # migration notary pair per version update (raise if a version needs more)

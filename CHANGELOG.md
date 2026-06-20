@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `notary` node type to release fleets (defaults `notary-count: "2"`, `notary-size: s-2vcpu-4gb`) — one always-on droplet per migration notary; the migration-window pair is provisioned by bumping the count, reusing the always-on cloud-init unchanged.
 - `domino_cli` crate.
 - `hf-swapper` and `hash-explorer` node types to release fleets.
 - Server types are now defined in a `nodeTypes` registry in `main.go`; adding a type is one entry there plus its `<name>-count` / `<name>-size` keys in `defaults.yaml`.

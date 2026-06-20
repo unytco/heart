@@ -88,6 +88,7 @@ var nodeTypes = []nodeType{
 	{name: "unyt-bridging", sizeKey: "bridging-size", countKey: "unyt-bridging-count", maxCount: 1},
 	{name: "hf-swapper", sizeKey: "hf-swapper-size", countKey: "hf-swapper-count", weeklyBackup: true},
 	{name: "hash-explorer", sizeKey: "hash-explorer-size", countKey: "hash-explorer-count", weeklyBackup: true},
+	{name: "notary", sizeKey: "notary-size", countKey: "notary-count", weeklyBackup: true},
 }
 
 // cfgRequired returns the value for heart:<key> or an error if it is unset.
