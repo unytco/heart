@@ -55,6 +55,6 @@ Droplets boot from the `cloudinit/cloud-config.yaml` template (rendered by Pulum
 
 - **One Pulumi stack per release.** Every DO resource is namespaced by `heart:release` (droplet names, `release:<release>` tags). Never reuse a stack across releases — that namespacing is exactly what lets fleets coexist.
 - **The InfluxDB token is intentionally plaintext in rendered cloud-init UserData.** It's a Pulumi secret (encrypted in the stack file) but must be readable at first boot, before systemd secret management exists, so Telegraf / the holochain service can start. This is by design — do **not** "fix" it by secret-tainting the cloud-init path.
-- **Node types are defined in `main.go`.** The five types (`heart-always-online`, `blockchain-bridging`, `unyt-bridging`, `hf-swapper`, `hash-explorer`) plus their sizing/count keys in `defaults.yaml`; adding a type means editing both.
+- **Node types are defined in `main.go`.** The six types (`heart-always-online`, `blockchain-bridging`, `unyt-bridging`, `hf-swapper`, `hash-explorer`, `notary`) plus their sizing/count keys in `defaults.yaml`; adding a type means editing both.
 - **Required per-stack config** (`heart:release`, `heart:project-name`, `digitalocean:token`, `heart:influx-token`) has no default — Pulumi errors at preview if missing. Everything else falls back to `defaults.yaml`.
 - **Secrets are gitignored** (`*.pem`, `*.key`, `id_rsa*`, `.env`, `credentials.json`) and blocked from agent reads. Don't add them to the repo or echo them.
