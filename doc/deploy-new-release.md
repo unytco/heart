@@ -178,6 +178,16 @@ make config  STACK=v0-6-0
 
 `make stacks` lists every release stack.
 
+## Migration window
+
+A new release is also the moment a **version-migration window** opens for the predecessor's users, so a release that supersedes an earlier one stands up that version's notary hosts and a router-registry entry alongside the fleet (the deploy/migration procedure is the workshop `deploy-release` skill). The retention policy for those hosts:
+
+- A released version's notary hosts + registry entry stay up **indefinitely by deliberate choice** — several versions (typically 3–4) coexist — so any still-supported user can migrate one step forward. There is **no** auto-decommission tied to release count.
+- A version's fleet comes down **only** on a deliberate org end-of-support decision for that version: remove its registry entry first, then tear the droplets down — both manual. (See § Decommissioning a release below for the stack teardown.)
+- Migration is **single-step**, so a multi-release-behind user climbs one version at a time — which works only while each intermediate version is still supported.
+
+This is a summary; the authoritative version-support policy lives in the workshop spec at [`documentation/specs/version-migration/notary-host.md`](../../documentation/specs/version-migration/notary-host.md) § Lifecycle.
+
 ## Decommissioning a release
 
 When a release is retired, tear down only its stack:

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `doc/deploy-new-release.md` § Migration window — the version-retention policy for a migration release (released versions stay up by deliberate choice so 3–4 coexist; no auto-decommission; a fleet comes down only on a deliberate org end-of-support decision — remove its registry entry, then tear down manually; single-step climb), pointing at the version-migration `notary-host.md` § Lifecycle as the authoritative home.
 - `notary` node type to release fleets (one always-on droplet per migration notary).
 - `domino_cli` crate.
 - `hf-swapper` and `hash-explorer` node types to release fleets.
