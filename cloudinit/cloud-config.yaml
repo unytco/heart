@@ -130,13 +130,18 @@ write_files:
 
       echo "==> Generating lair passphrase..."
       mkdir -p "${HOLOCHAIN_DIR}" "${LAIR_DIR}"
+      # The `lair` group lets co-located non-root services (pricing-oracle,
+      # bridge-orchestrator) read the passphrase to sign via lair without
+      # running as root; root (lair-keystore / holochain) still owns the file.
+      groupadd -f lair
       if [ ! -f "${HOLOCHAIN_DIR}/lair-passphrase" ]; then
           openssl rand -hex 32 > "${HOLOCHAIN_DIR}/lair-passphrase"
-          chmod 600 "${HOLOCHAIN_DIR}/lair-passphrase"
           echo "    Passphrase written to ${HOLOCHAIN_DIR}/lair-passphrase"
       else
           echo "    Passphrase already exists, skipping"
       fi
+      chown root:lair "${HOLOCHAIN_DIR}/lair-passphrase"
+      chmod 640 "${HOLOCHAIN_DIR}/lair-passphrase"
 
       echo "==> Initialising lair keystore..."
       printf '%s' "$(cat "${HOLOCHAIN_DIR}/lair-passphrase")" | \
