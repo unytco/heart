@@ -126,7 +126,7 @@ Everything lives under `/var/lib/holochain/`:
 |---|---|
 | `data/` | Conductor databases and state |
 | `lair/` | Lair keystore data |
-| `lair-passphrase` | Passphrase used to unlock the lair keystore (mode 600). Needed if you ever have to inspect the keystore directly. |
+| `lair-passphrase` | Passphrase used to unlock the lair keystore (`root:lair`, mode 640 — the `lair` group lets co-located non-root services read it to sign via lair). Needed if you ever have to inspect the keystore directly. |
 | `agent-pub-key` | The node's agent public key as base64url. **This is the key you need when installing an app** — pass it as `--agent-key` to `hc sandbox call`. |
 
 ### Services
