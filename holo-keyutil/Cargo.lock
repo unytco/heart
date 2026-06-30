@@ -445,9 +445,9 @@ dependencies = [
 
 [[package]]
 name = "holo_hash"
-version = "0.6.1"
+version = "0.6.2-rc.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e08d69f8af5042aa369b7fda3d9bea7ffe08de680aa9f897c29e50de0e2460c"
+checksum = "abb17c766438ab7ea6312640e692f414478b26c6556290d86bd6e23c92eb61ca"
 dependencies = [
  "holochain_serialized_bytes",
  "holochain_util",

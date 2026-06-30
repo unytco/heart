@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- bump cloud-init HOLOCHAIN_VERSION and holo-keyutil deps to Holochain 0.6.1
+- bump cloud-init HOLOCHAIN_VERSION and holo-keyutil deps to Holochain 0.6.2-rc.0
 - Deploy model is now one Pulumi stack per unyt release, namespaced by the `heart:release` config value. Holochain/keyutil versions, network endpoints (bootstrap/signal/relay/auth), InfluxDB url/org/bucket, droplet sizes and counts are all per-release config keys; their defaults live in `defaults.yaml` (edit it to change a default for all releases). See `Pulumi.release.yaml.example` and `doc/deploy-new-release.md`.
 - Makefile reworked around the Pulumi per-release workflow (`make new-release RELEASE=…`, `preview`, `up`, `destroy`); dropped the dead Terraform/Vagrant targets.
 

@@ -27,7 +27,7 @@ config:
   # heart:influx-token  -> set with `pulumi config set --secret heart:influx-token ...`
 
   # --- versions (defaults shown) ---
-  heart:holochain-version: holochain-0.6.1
+  heart:holochain-version: holochain-0.6.2-rc.0
   heart:holo-keyutil-version: v0.1.0
 
   # --- network identity (defaults = shared unyt infra) ---
