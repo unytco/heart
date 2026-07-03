@@ -49,7 +49,9 @@ config:
   heart:unyt-bridging-count: "1"
   heart:hf-swapper-count: "1"
   heart:hash-explorer-count: "1"
+  heart:notary-count: "2"  # migration notary pair per version update (raise if a version needs more)
   heart:always-online-size: s-2vcpu-4gb
   heart:bridging-size: s-4vcpu-8gb
   heart:hf-swapper-size: s-2vcpu-4gb
   heart:hash-explorer-size: s-2vcpu-4gb
+  heart:notary-size: s-2vcpu-4gb
