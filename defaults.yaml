@@ -30,9 +30,15 @@ hash-explorer-size: s-2vcpu-4gb
 notary-size: s-2vcpu-4gb
 
 # Node counts. blockchain-bridging and unyt-bridging are capped at 1.
-always-online-count: "2"
+#
+# Disabled roles default to 0: the service nodes each run a full conductor +
+# agent, so dedicated always-online peers add nothing, and unyt-bridging never
+# took on its intended bridging duty. Their automation configs are parked in
+# automation/config/disabled/ — re-enabling a role means raising its count here
+# (or per stack) AND restoring that config dir + its Makefile targets.
+always-online-count: "0"   # was "2"
 blockchain-bridging-count: "1"
-unyt-bridging-count: "1"
+unyt-bridging-count: "0"   # was "1"
 hf-swapper-count: "1"
 hash-explorer-count: "1"
-notary-count: "2"  # migration notary pair per version update (raise if a version needs more)
+notary-count: "1"  # was "2" — single-notary policy for now; raise per release when a window needs resilience (notary-2's config is parked too)

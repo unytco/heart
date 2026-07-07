@@ -82,10 +82,12 @@ pulumi config set heart:release v0-7-0
 Configure the number of nodes, of each type:
 
 ```shell
-pulumi config set heart:always-online-count 4
 pulumi config set heart:blockchain-bridging-count 1
-pulumi config set heart:unyt-bridging-count 1
+pulumi config set heart:notary-count 2           # e.g. give one release a notary pair
+pulumi config set heart:always-online-count 2    # disabled role — defaults to 0, see defaults.yaml
 ```
+
+Raising a count above its default only takes effect end to end when the matching automation config exists: the disabled roles (`heart-always-online`, `unyt-bridging` — default 0) **and a second notary** (`notary-2`) have theirs parked in `automation/config/disabled/` — restore it (and its automation Makefile targets) alongside the count bump, per `automation/AGENTS.md` § Deploy.
 
 All other per-release values (Holochain version, network endpoints, InfluxDB
 bucket, droplet sizes) are optional config keys whose defaults live in
