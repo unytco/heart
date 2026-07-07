@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Default fleet shape shrinks to 4 droplets per release: `always-online-count` and `unyt-bridging-count` default to `0` (the service nodes each run a full conductor + agent, so dedicated always-on peers add nothing; unyt-bridging never took on its intended bridging duty) and `notary-count` defaults to `1` (single-notary policy for now — raise per release when a window needs resilience). The role types stay defined in `nodeTypes`; re-enabling one is a count bump plus restoring its parked config from `automation/config/disabled/`. Docs (`README`, `deploy-new-release`, `setup-progenitor`, `Pulumi.release.yaml.example`) updated to the 4-role fleet, including the watchtower observer now living on the hash-explorer node.
 - bump cloud-init HOLOCHAIN_VERSION and holo-keyutil deps to Holochain 0.6.2-rc.0
 - Deploy model is now one Pulumi stack per unyt release, namespaced by the `heart:release` config value. Holochain/keyutil versions, network endpoints (bootstrap/signal/relay/auth), InfluxDB url/org/bucket, droplet sizes and counts are all per-release config keys; their defaults live in `defaults.yaml` (edit it to change a default for all releases). See `Pulumi.release.yaml.example` and `doc/deploy-new-release.md`.
 - Makefile reworked around the Pulumi per-release workflow (`make new-release RELEASE=…`, `preview`, `up`, `destroy`); dropped the dead Terraform/Vagrant targets.

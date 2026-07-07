@@ -5,7 +5,7 @@ The progenitor is the first node in the network — it creates the network rathe
 - the **progenitor agent key** — becomes `properties.progenitor_pubkey` in the automation repo's `config/release.json`
 - the **network seed** used to create the network — becomes `network_seed` in `config/release.json`
 
-Until both are filled into `release.json` with the real progenitor values, the per-node service deploys (`make always-online-1`, etc.) cannot run.
+Until both are filled into `release.json` with the real progenitor values, the per-node service deploys (`make hash-explorer`, etc.) cannot run.
 
 ## Current process (manual)
 

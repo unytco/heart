@@ -44,12 +44,14 @@ config:
   heart:influx-bucket: unyt
 
   # --- fleet shape (defaults shown; bridging counts are capped at 1) ---
-  heart:always-online-count: "1"
+  # always-online + unyt-bridging are disabled roles (default 0) — restoring one
+  # also needs its parked config back from automation/config/disabled/.
+  heart:always-online-count: "0"
   heart:blockchain-bridging-count: "1"
-  heart:unyt-bridging-count: "1"
+  heart:unyt-bridging-count: "0"
   heart:hf-swapper-count: "1"
   heart:hash-explorer-count: "1"
-  heart:notary-count: "2"  # migration notary pair per version update (raise if a version needs more)
+  heart:notary-count: "1"  # single-notary policy for now (raise per release when a window needs resilience)
   heart:always-online-size: s-2vcpu-4gb
   heart:bridging-size: s-4vcpu-8gb
   heart:hf-swapper-size: s-2vcpu-4gb
