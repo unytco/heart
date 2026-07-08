@@ -82,7 +82,7 @@ On first boot each node's `holochain-register` service creates an agent key, sub
 So after `make up`, an admin must approve each new node's request:
 
 1. Sign in to the auth ops console: <https://hc-auth-iroh-unyt.holochain.org/ops/auth>
-2. Click **Approve** on each pending request — one per new node (all four for the default fleet shape).
+2. Click **Approve** on each pending request — one per new node (all five for the default fleet shape: the progenitor plus the four service nodes). The progenitor boots with the same `holochain-register` service and submits a request too; approve it like the rest (its chain is re-created when `make progenitor` runs, but the auth-server request still appears).
 
 Once approved, each node's `holochain-register` picks up the credentials on its next poll and Holochain restarts automatically.
 
