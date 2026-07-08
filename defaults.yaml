@@ -23,19 +23,26 @@ influx-org: "711f755560a58686"
 influx-bucket: unyt
 
 # Droplet sizes (DigitalOcean slugs).
+progenitor-size: s-2vcpu-4gb
 always-online-size: s-2vcpu-4gb
 bridging-size: s-4vcpu-8gb
 hf-swapper-size: s-2vcpu-4gb
 hash-explorer-size: s-2vcpu-4gb
 notary-size: s-2vcpu-4gb
 
-# Node counts. blockchain-bridging and unyt-bridging are capped at 1.
+# Node counts. progenitor, blockchain-bridging and unyt-bridging are capped at 1.
+#
+# progenitor defaults to 1: every release needs its network creator, deployed
+# first, on its own droplet (it produces the network_seed + progenitor_pubkey
+# every other node reads from automation/config/release.json). See
+# heart/doc/setup-progenitor.md.
 #
 # Disabled roles default to 0: the service nodes each run a full conductor +
 # agent, so dedicated always-online peers add nothing, and unyt-bridging never
 # took on its intended bridging duty. Their automation configs are parked in
 # automation/config/disabled/ — re-enabling a role means raising its count here
 # (or per stack) AND restoring that config dir + its Makefile targets.
+progenitor-count: "1"
 always-online-count: "0"   # was "2"
 blockchain-bridging-count: "1"
 unyt-bridging-count: "0"   # was "1"
