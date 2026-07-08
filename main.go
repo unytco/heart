@@ -83,6 +83,7 @@ type nodeType struct {
 }
 
 var nodeTypes = []nodeType{
+	{name: "progenitor", sizeKey: "progenitor-size", countKey: "progenitor-count", maxCount: 1, weeklyBackup: true},
 	{name: "heart-always-online", sizeKey: "always-online-size", countKey: "always-online-count", weeklyBackup: true},
 	{name: "blockchain-bridging", sizeKey: "bridging-size", countKey: "blockchain-bridging-count", maxCount: 1},
 	{name: "unyt-bridging", sizeKey: "bridging-size", countKey: "unyt-bridging-count", maxCount: 1},

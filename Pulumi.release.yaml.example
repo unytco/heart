@@ -43,7 +43,8 @@ config:
   heart:influx-org: "711f755560a58686"
   heart:influx-bucket: unyt
 
-  # --- fleet shape (defaults shown; bridging counts are capped at 1) ---
+  # --- fleet shape (defaults shown; progenitor + bridging counts are capped at 1) ---
+  heart:progenitor-count: "1"   # the network creator, deployed first on its own droplet
   # always-online + unyt-bridging are disabled roles (default 0) — restoring one
   # also needs its parked config back from automation/config/disabled/.
   heart:always-online-count: "0"
@@ -52,6 +53,7 @@ config:
   heart:hf-swapper-count: "1"
   heart:hash-explorer-count: "1"
   heart:notary-count: "1"  # single-notary policy for now (raise per release when a window needs resilience)
+  heart:progenitor-size: s-2vcpu-4gb
   heart:always-online-size: s-2vcpu-4gb
   heart:bridging-size: s-4vcpu-8gb
   heart:hf-swapper-size: s-2vcpu-4gb

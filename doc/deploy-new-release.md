@@ -8,7 +8,7 @@ This is the recommended path for "deploy a new set of servers for a new version 
 
 A stack's `heart:release` value (e.g. `v0-7-0`) namespaces every resource it creates:
 
-- Droplets are named `<role>-<release>-N`, e.g. `blockchain-bridging-<release>-1`, `hash-explorer-<release>-1`, `hf-swapper-<release>-1`, `notary-<release>-1` — the default fleet shape. (The disabled role types `heart-always-online` and `unyt-bridging` provision only if their count is raised from 0 — see `defaults.yaml`.)
+- Droplets are named `<role>-<release>-N`, e.g. `progenitor-<release>-1`, `blockchain-bridging-<release>-1`, `hash-explorer-<release>-1`, `hf-swapper-<release>-1`, `notary-<release>-1` — the default fleet shape (five droplets: the progenitor plus the four service nodes). (The disabled role types `heart-always-online` and `unyt-bridging` provision only if their count is raised from 0 — see `defaults.yaml`.)
 - Every droplet is tagged `release:<release>` (plus its role tag), so you can filter a release's fleet in the DigitalOcean console or API.
 
 Two release fleets therefore coexist cleanly in the same DigitalOcean project without name collisions.
@@ -82,7 +82,7 @@ On first boot each node's `holochain-register` service creates an agent key, sub
 So after `make up`, an admin must approve each new node's request:
 
 1. Sign in to the auth ops console: <https://hc-auth-iroh-unyt.holochain.org/ops/auth>
-2. Click **Approve** on each pending request — one per new node (all four for the default fleet shape).
+2. Click **Approve** on each pending request — one per new node (all five for the default fleet shape: the progenitor plus the four service nodes). The progenitor boots with the same `holochain-register` service and submits a request too; approve it like the rest (its chain is re-created when `make progenitor` runs, but the auth-server request still appears).
 
 Once approved, each node's `holochain-register` picks up the credentials on its next poll and Holochain restarts automatically.
 
@@ -95,7 +95,7 @@ Before deploying the app to any service node, the **progenitor must be set up**,
 
 In the automation repo these two values live in `config/release.json` (release-wide, shared by every node). You cannot deploy the services until they're filled in with the real progenitor values.
 
-Progenitor setup is currently **manual**: install the `.happ`/`.deb` build by hand and bring up a running agent, then read back its agent key and the network seed. See [Setup Progenitor](./setup-progenitor.md).
+The progenitor is its own droplet (the `progenitor` node type, provisioned by `make up`) and is deployed with the same agent machinery as every other node: set a fresh `network_seed` and clear `properties.progenitor_pubkey` in `release.json`, run `make progenitor` (automation) to create the network, then record the reported agent key as `properties.progenitor_pubkey`. The full step-by-step — including configuring the Holo Hosting network with `unyt_cli progenitor holo-hosting setup` once the metered agents are up — is in [Setup Progenitor](./setup-progenitor.md).
 
 ### 7. Bring nodes into service
 
