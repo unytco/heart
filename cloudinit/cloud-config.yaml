@@ -82,9 +82,6 @@ write_files:
 
       HOLOCHAIN_VERSION="{{ .HolochainVersion }}"
       HOLO_KEYUTIL_VERSION="{{ .HoloKeyutilVersion }}"
-      HOLOCHAIN_DIR=/var/lib/holochain
-      LAIR_DIR=${HOLOCHAIN_DIR}/lair
-      CONFIG_FILE=/etc/holochain/conductor-config.yaml
 
       # On some DigitalOcean images the machine-id subdirectory under
       # /run/log/journal is not created, so journald has nowhere to write
@@ -128,33 +125,11 @@ write_files:
           chmod 755 "/usr/local/bin/holo-keyutil"
       fi
 
-      echo "==> Generating lair passphrase..."
-      mkdir -p "${HOLOCHAIN_DIR}" "${LAIR_DIR}"
-      # The `lair` group lets co-located non-root services (pricing-oracle,
-      # bridge-orchestrator) read the passphrase to sign via lair without
-      # running as root; root (lair-keystore / holochain) still owns the file.
-      groupadd -f lair
-      if [ ! -f "${HOLOCHAIN_DIR}/lair-passphrase" ]; then
-          openssl rand -hex 32 > "${HOLOCHAIN_DIR}/lair-passphrase"
-          echo "    Passphrase written to ${HOLOCHAIN_DIR}/lair-passphrase"
-      else
-          echo "    Passphrase already exists, skipping"
-      fi
-      chown root:lair "${HOLOCHAIN_DIR}/lair-passphrase"
-      chmod 640 "${HOLOCHAIN_DIR}/lair-passphrase"
-
-      echo "==> Initialising lair keystore..."
-      printf '%s' "$(cat "${HOLOCHAIN_DIR}/lair-passphrase")" | \
-          /usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" init --piped \
-          || true  # non-zero if already initialised
-
-      echo "==> Discovering lair connection URL..."
-      LAIR_URL=$(/usr/local/bin/lair-keystore --lair-root "${LAIR_DIR}" url)
-      echo "    Lair URL: ${LAIR_URL}"
-
-      echo "==> Patching conductor config with lair URL..."
-      sed -i "s|connection_url: LAIR_CONNECTION_URL_PLACEHOLDER|connection_url: \"${LAIR_URL}\"|" \
-          "${CONFIG_FILE}"
+      # Lair passphrase, lair init, connection-URL discovery + conductor-config
+      # patch: the invariant base-image core shared verbatim with the
+      # local-testnet fleet image (single source: cloudinit/base/first-boot-core.sh,
+      # laid down below as /usr/local/bin/holochain-first-boot-core).
+      /usr/local/bin/holochain-first-boot-core
 
       echo "==> Enabling and starting services..."
       systemctl daemon-reload
@@ -165,6 +140,16 @@ write_files:
       systemctl start --no-block holochain-register.service
 
       echo "==> First-boot setup complete"
+
+  # Shared base-image first-boot core (lair passphrase, lair init, connection-URL
+  # discovery, conductor-config patch) — the invariant both this cloud-init and the
+  # local-testnet fleet image run verbatim. Single source: cloudinit/base/first-boot-core.sh;
+  # base64-injected here (encoding: b64) and COPYed as-is by the fleet Dockerfile.
+  - path: /usr/local/bin/holochain-first-boot-core
+    permissions: "0755"
+    owner: root:root
+    encoding: b64
+    content: "{{ .FirstBootCoreB64 }}"
 
   # Registers this node with the hc-auth-server and refreshes auth credentials.
   # Runs as a systemd service on every boot.
@@ -279,58 +264,36 @@ write_files:
 
       echo "Registration complete"
 
+  # Base lair-keystore unit — shared verbatim with the local-testnet fleet
+  # (single source: cloudinit/base/lair-keystore.service, base64-injected here).
   - path: /etc/systemd/system/lair-keystore.service
-    content: |
-      [Unit]
-      Description=Lair Keystore
-      After=network.target
-      StartLimitIntervalSec=0
+    permissions: "0644"
+    owner: root:root
+    encoding: b64
+    content: "{{ .LairKeystoreUnitB64 }}"
 
-      [Service]
-      Type=simple
-      User=root
-      Group=root
-      ExecStart=/bin/bash -c 'printf "%%s" "$(cat /var/lib/holochain/lair-passphrase)" | /usr/local/bin/lair-keystore --lair-root /var/lib/holochain/lair server --piped'
-      Restart=always
-      RestartSec=3
-      StandardOutput=journal
-      StandardError=journal
-      ProtectSystem=full
-      ReadWritePaths=/var/lib/holochain
-      ReadWritePaths=/tmp
-      NoNewPrivileges=yes
-
-      [Install]
-      WantedBy=multi-user.target
-
+  # Base holochain conductor unit — shared verbatim with the local-testnet fleet
+  # (single source: cloudinit/base/holochain.service, base64-injected here). The
+  # InfluxDB metrics env is prod-only and lives in the drop-in below; the local
+  # fleet, with no metrics cloud, ships the base unit unchanged.
   - path: /etc/systemd/system/holochain.service
-    content: |
-      [Unit]
-      Description=Holochain Conductor
-      After=network.target lair-keystore.service
-      Requires=lair-keystore.service
+    permissions: "0644"
+    owner: root:root
+    encoding: b64
+    content: "{{ .HolochainUnitB64 }}"
 
+  # Prod-only drop-in: point holochain's built-in InfluxDB metrics exporter at
+  # our bucket. Kept as a .service.d drop-in so the base unit above stays a
+  # shared invariant instead of forking prod-vs-local copies.
+  - path: /etc/systemd/system/holochain.service.d/10-metrics.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
       [Service]
-      Type=simple
-      User=root
-      Group=root
-      Environment="RUST_LOG=info"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL=1"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_HOST={{ .InfluxURL }}"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_BUCKET={{ .InfluxBucket }}"
       Environment="HOLOCHAIN_INFLUXIVE_EXTERNAL_TOKEN={{ .InfluxToken }}"
-      ExecStart=/bin/bash -c 'printf "%%s" "$(cat /var/lib/holochain/lair-passphrase)" | /usr/local/bin/holochain --config-path /etc/holochain/conductor-config.yaml --piped'
-      Restart=always
-      RestartSec=5
-      StandardOutput=journal
-      StandardError=journal
-      ProtectSystem=full
-      ReadWritePaths=/var/lib/holochain
-      ReadWritePaths=/tmp
-      NoNewPrivileges=yes
-
-      [Install]
-      WantedBy=multi-user.target
 
   # holochain-register runs on every boot after Holochain is up. It obtains fresh
   # auth credentials from lair and writes them to the conductor config before

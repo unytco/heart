@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"regexp"
@@ -310,19 +311,68 @@ func ipsKey(nt nodeType, i int) string {
 	return fmt.Sprintf("%s-%d", nt.name, i)
 }
 
-// renderCloudInit reads the cloud-config template and renders it with data.
+// renderCloudInit reads the cloud-config template plus the shared base-image
+// files and renders them into the final cloud-init user-data.
 func renderCloudInit(data cloudInitData) (string, error) {
 	raw, err := os.ReadFile("cloudinit/cloud-config.yaml")
 	if err != nil {
 		return "", fmt.Errorf("failed to read cloud-init config: %w", err)
 	}
+
+	// The invariant base-image files (cloudinit/base/) are the single source of
+	// truth shared with the local-testnet fleet image (automation/local/fleet/):
+	// the two systemd units and the first-boot core. They are injected via
+	// cloud-init's `encoding: b64` so a multi-line file lands as one YAML scalar
+	// (no indentation gymnastics) and is byte-for-byte what the fleet Dockerfile
+	// COPYs. A change to a base file reaches BOTH targets. Per-target divergences
+	// live outside these files (prod's InfluxDB metrics env in a
+	// holochain.service.d drop-in below; the fleet's first-boot ordering drop-in
+	// and its own wrapper).
+	lairUnitB64, err := readBaseFileB64("cloudinit/base/lair-keystore.service")
+	if err != nil {
+		return "", err
+	}
+	holochainUnitB64, err := readBaseFileB64("cloudinit/base/holochain.service")
+	if err != nil {
+		return "", err
+	}
+	firstBootCoreB64, err := readBaseFileB64("cloudinit/base/first-boot-core.sh")
+	if err != nil {
+		return "", err
+	}
+
+	// Embed cloudInitData so its fields stay accessible as {{ .BootstrapURL }}
+	// etc., and add the base64 blobs the write_files entries consume.
+	tmplData := struct {
+		cloudInitData
+		LairKeystoreUnitB64 string
+		HolochainUnitB64    string
+		FirstBootCoreB64    string
+	}{
+		cloudInitData:       data,
+		LairKeystoreUnitB64: lairUnitB64,
+		HolochainUnitB64:    holochainUnitB64,
+		FirstBootCoreB64:    firstBootCoreB64,
+	}
+
 	tmpl, err := template.New("cloud-init").Parse(string(raw))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse cloud-init template: %w", err)
 	}
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := tmpl.Execute(&buf, tmplData); err != nil {
 		return "", fmt.Errorf("failed to render cloud-init template: %w", err)
 	}
 	return buf.String(), nil
+}
+
+// readBaseFileB64 reads a shared base-image file (cloudinit/base/) and returns
+// its base64 encoding for injection into a cloud-init `encoding: b64`
+// write_files entry.
+func readBaseFileB64(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read base-image file %s: %w", path, err)
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
 }
