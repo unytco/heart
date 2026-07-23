@@ -29,6 +29,7 @@ bridging-size: s-4vcpu-8gb
 hf-swapper-size: s-2vcpu-4gb
 hash-explorer-size: s-2vcpu-4gb
 notary-size: s-2vcpu-4gb
+wt-log-harvester-size: s-2vcpu-4gb
 
 # Node counts. progenitor, blockchain-bridging and unyt-bridging are capped at 1.
 #
@@ -49,3 +50,9 @@ unyt-bridging-count: "0"   # was "1"
 hf-swapper-count: "1"
 hash-explorer-count: "1"
 notary-count: "1"  # was "2" — single-notary policy for now; raise per release when a window needs resilience (notary-2's config is parked too)
+
+# Wind-tunnel sub-fleet (proof-of-service pipeline — automation/config/wt-log-harvester/,
+# wt-hf-pipeline/OPS.md). Only the harvester is a provisioned node; the sub-fleet's
+# other agents (wt lane manager, wt treasury) are laptop-resident external members,
+# allow-listed via external_agents in the wt-log-harvester automation config.
+wt-log-harvester-count: "1"

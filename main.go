@@ -91,6 +91,13 @@ var nodeTypes = []nodeType{
 	{name: "hf-swapper", sizeKey: "hf-swapper-size", countKey: "hf-swapper-count", weeklyBackup: true},
 	{name: "hash-explorer", sizeKey: "hash-explorer-size", countKey: "hash-explorer-count", weeklyBackup: true},
 	{name: "notary", sizeKey: "notary-size", countKey: "notary-count", weeklyBackup: true},
+	// Wind-tunnel sub-fleet (proof-of-service pipeline — see wt-hf-pipeline/OPS.md).
+	// Same conductor node as every other type; the wt- prefix scopes it to the
+	// Wind Tunnel lane (other lanes will have their own harvester flavors). The
+	// sub-fleet's other agents (wt lane manager, wt treasury) are laptop-resident
+	// external members — never provisioned here; their keys are allow-listed via
+	// external_agents in automation/config/wt-log-harvester/deploy.json.
+	{name: "wt-log-harvester", sizeKey: "wt-log-harvester-size", countKey: "wt-log-harvester-count", weeklyBackup: true},
 }
 
 // cfgRequired returns the value for heart:<key> or an error if it is unset.

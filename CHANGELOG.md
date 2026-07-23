@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `wt-log-harvester` node type: the Wind Tunnel sub-fleet's proof-of-service harvester node (wt-hf-pipeline). The `wt-` prefix scopes the type to the Wind Tunnel lane — other lanes will have their own harvester flavors. Only the harvester is provisioned; the sub-fleet's laptop-resident agents (wt lane manager, wt treasury) are external members allow-listed via `external_agents` in `automation/config/wt-log-harvester/deploy.json`, deliberately NOT node types here.
+
 - `lair` group on release fleets: the lair passphrase is written `root:lair` mode `640` (was root-only `600`) so co-located non-root services (pricing-oracle, bridge-orchestrator) can read it to sign zome calls via lair without running as root.
 - `doc/deploy-new-release.md` § Migration window — the version-retention policy for a migration release (released versions stay up by deliberate choice so 3–4 coexist; no auto-decommission; a fleet comes down only on a deliberate org end-of-support decision — remove its registry entry, then tear down manually; single-step climb), pointing at the version-migration `notary-host.md` § Lifecycle as the authoritative home.
 - `notary` node type to release fleets (one always-on droplet per migration notary).
