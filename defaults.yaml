@@ -16,10 +16,12 @@ signal-url: http://not-used:1234
 relay-url: https://iroh-relay-unyt.holochain.org
 auth-server: https://hc-auth-iroh-unyt.holochain.org
 
-# Metrics. Defaults to the shared "unyt" bucket. To isolate a release's metrics,
-# override heart:influx-bucket per stack with a bucket that already exists in InfluxDB.
-influx-url: https://us-east-1-1.aws.cloud2.influxdata.com
-influx-org: "711f755560a58686"
+# Metrics go to the self-hosted InfluxDB (wind-tunnel/influx/ on the ifdb host).
+# Defaults to the shared "unyt" bucket. To isolate a release's metrics, override
+# heart:influx-bucket per stack with a bucket that already exists on the instance
+# (this program does not create buckets — `influx bucket create` there first).
+influx-url: https://ifdb.holochain.org
+influx-org: holo
 influx-bucket: unyt
 
 # Droplet sizes (DigitalOcean slugs).

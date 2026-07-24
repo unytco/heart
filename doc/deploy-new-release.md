@@ -20,7 +20,7 @@ Two release fleets therefore coexist cleanly in the same DigitalOcean project wi
   nix develop
   ```
 - A DigitalOcean API token and an SSH key already added to the DigitalOcean account.
-- The InfluxDB token for metrics shipping.
+- The InfluxDB token for metrics shipping — an API token generated on the self-hosted InfluxDB (`ifdb.holochain.org`, org `holo`) with write access to the metrics bucket.
 - **Cloudflare credentials for the automation deploy** (the joining-service redeploy and other wrangler steps need them). Copy `automation/.env.example` to `automation/.env` and set `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`; the automation Makefile auto-loads `.env`. The deploy fails fast up front if these are missing, so set them before running any `make <role>`.
 - **Metrics default to the shared `unyt` InfluxDB bucket** — no setup needed. Optionally, to isolate a release's metrics, override `heart:influx-bucket` with a bucket that already exists in InfluxDB (this program does not create it).
 
