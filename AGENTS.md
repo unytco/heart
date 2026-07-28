@@ -35,7 +35,7 @@ nix develop -c gofmt -l .                       # check: prints files needing fo
 nix develop -c go test ./...
 ```
 
-`main_test.go` covers release-name validation, IP-key generation, and defaults loading — **parsing/validation logic only, no live DigitalOcean**. Verify provisioning changes with `nix develop -c pulumi preview` (dry-run) and Pulumi mocks, **not** by SSHing into prod and pasting logs.
+`main_test.go` covers release-name validation, IP-key generation, defaults loading, cloud-init rendering and the ASCII guard on the rendered user-data — **parsing/validation logic only, no live DigitalOcean**. Verify provisioning changes with `nix develop -c pulumi preview` (dry-run) and Pulumi mocks, **not** by SSHing into prod and pasting logs.
 
 ## Deploy
 
@@ -54,6 +54,8 @@ Droplets boot from the `cloudinit/cloud-config.yaml` template (rendered by Pulum
 ## Repo-specific rules
 
 - **One Pulumi stack per release.** Every DO resource is namespaced by `heart:release` (droplet names, `release:<release>` tags). Never reuse a stack across releases — that namespacing is exactly what lets fleets coexist.
+- **`cloudinit/` is user-data: any byte change replaces every droplet in the stack.** DigitalOcean treats `userData` as replace-on-change, and `cloudinit/base/*` is base64-injected into it, so even a comment typo fix destroys and recreates the fleet — losing each node's agent key, source chain and auth-server registration. Run `make preview` before landing any `cloudinit/` edit, however cosmetic, and expect a live fleet to need a migration window rather than a `make up`.
+- **`cloudinit/` is printable-ASCII only.** cloud-init's YAML loader rejects a non-ASCII byte (`unacceptable character #x0080`) or a C0 control (`control characters are not allowed`) by discarding the *entire* config, so the droplet boots bare with no conductor, lair or registration and nothing reports it. `renderCloudInit` blocks such a byte in the rendered user-data and screens the `heart:*` config values interpolated into it; `TestCloudInitTreeIsASCII` blocks it in `cloudinit/base/*`, which is base64-encoded and so invisible to that guard.
 - **The InfluxDB token is intentionally plaintext in rendered cloud-init UserData.** It's a Pulumi secret (encrypted in the stack file) but must be readable at first boot, before systemd secret management exists, so Telegraf / the holochain service can start. This is by design — do **not** "fix" it by secret-tainting the cloud-init path.
 - **Node types are defined in `main.go`.** The six types (`heart-always-online`, `blockchain-bridging`, `unyt-bridging`, `hf-swapper`, `hash-explorer`, `notary`) plus their sizing/count keys in `defaults.yaml`; adding a type means editing both.
 - **Required per-stack config** (`heart:release`, `heart:project-name`, `digitalocean:token`, `heart:influx-token`) has no default — Pulumi errors at preview if missing. Everything else falls back to `defaults.yaml`.

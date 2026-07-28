@@ -142,7 +142,7 @@ write_files:
       echo "==> First-boot setup complete"
 
   # Shared base-image first-boot core (lair passphrase, lair init, connection-URL
-  # discovery, conductor-config patch) — the invariant both this cloud-init and the
+  # discovery, conductor-config patch) - the invariant both this cloud-init and the
   # local-testnet fleet image run verbatim. Single source: cloudinit/base/first-boot-core.sh;
   # base64-injected here (encoding: b64) and COPYed as-is by the fleet Dockerfile.
   - path: /usr/local/bin/holochain-first-boot-core
@@ -264,7 +264,7 @@ write_files:
 
       echo "Registration complete"
 
-  # Base lair-keystore unit — shared verbatim with the local-testnet fleet
+  # Base lair-keystore unit - shared verbatim with the local-testnet fleet
   # (single source: cloudinit/base/lair-keystore.service, base64-injected here).
   - path: /etc/systemd/system/lair-keystore.service
     permissions: "0644"
@@ -272,7 +272,7 @@ write_files:
     encoding: b64
     content: "{{ .LairKeystoreUnitB64 }}"
 
-  # Base holochain conductor unit — shared verbatim with the local-testnet fleet
+  # Base holochain conductor unit - shared verbatim with the local-testnet fleet
   # (single source: cloudinit/base/holochain.service, base64-injected here). The
   # InfluxDB metrics env is prod-only and lives in the drop-in below; the local
   # fleet, with no metrics cloud, ships the base unit unchanged.
