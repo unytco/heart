@@ -22,6 +22,9 @@ help: ## Show this help
 build: ## Compile the Pulumi program
 	go build ./...
 
+test: ## Run the tests
+	go test ./...
+
 vet: ## Run go vet
 	go vet ./...
 
@@ -88,4 +91,4 @@ stacks: ## List all stacks
 current: ## Show the currently selected stack and its resources
 	pulumi stack $(PULUMI_STACK)
 
-.PHONY: help build vet fmt new-release preview up refresh destroy set-tunnel-secret config stacks current
+.PHONY: help build test vet fmt new-release preview up refresh destroy set-tunnel-secret config stacks current

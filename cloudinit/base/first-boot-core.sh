@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SHARED base-image first-boot CORE — single source of truth for the invariant
+# SHARED base-image first-boot CORE - single source of truth for the invariant
 # middle both heart's cloud-init and the local-testnet fleet image run verbatim:
 # generate the lair passphrase, initialise lair, discover its connection URL,
 # and patch the conductor config with it. Self-contained (defines its own paths)
@@ -8,12 +8,12 @@
 # The DIVERGENT wrappers around this core live with each consumer and are NOT
 # shared: heart's wrapper (cloudinit/cloud-config.yaml -> holochain-first-boot)
 # adds the journald fix, Telegraf install, binary downloads, and service start;
-# the fleet's wrapper (automation/local/fleet/holochain-first-boot) adds ssh
-# host-key generation and nothing else (binaries are baked at build, systemd
-# oneshot ordering starts the services). Consumed by:
+# the fleet's wrapper (automation/emulation/heart/first-boot/holochain-first-boot)
+# adds ssh host-key generation and nothing else (binaries are baked at build,
+# systemd oneshot ordering starts the services). Consumed by:
 #   - heart:  cloudinit/cloud-config.yaml (base64-injected as
 #             /usr/local/bin/holochain-first-boot-core, called by the wrapper)
-#   - fleet:  automation/local/fleet/Dockerfile (COPYed to the same path)
+#   - fleet:  automation/emulation/heart/Dockerfile (COPYed to the same path)
 set -eo pipefail
 
 HOLOCHAIN_DIR=/var/lib/holochain

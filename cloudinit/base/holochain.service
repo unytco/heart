@@ -1,7 +1,7 @@
-# SHARED base-image unit — single source of truth for the holochain conductor
+# SHARED base-image unit - single source of truth for the holochain conductor
 # systemd unit. Consumed verbatim by BOTH heart's cloud-init (base64-injected by
 # main.go into cloudinit/cloud-config.yaml) and the local-testnet fleet image
-# (COPYed by automation/local/fleet/Dockerfile). Keep it invariant: per-target
+# (COPYed by automation/emulation/heart/Dockerfile). Keep it invariant: per-target
 # divergences go in a .service.d drop-in, never here (prod adds the InfluxDB
 # metrics env via holochain.service.d/10-metrics.conf; the local fleet has no
 # metrics cloud and adds nothing).

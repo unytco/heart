@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/pulumi/pulumi-digitalocean/sdk/v4/go/digitalocean"
@@ -60,6 +61,33 @@ type cloudInitData struct {
 	InfluxOrg          string
 	InfluxBucket       string
 	InfluxToken        string
+}
+
+// configField pairs a templated value with the heart:<key> an operator edits, so
+// a rejected byte can name the key instead of an offset into the rendered output.
+type configField struct{ key, val string }
+
+// fields and secrets live next to the struct so that adding a value to
+// cloudInitData puts the question of "which key is it, and is it sensitive?"
+// in the same place as the field itself.
+func (d cloudInitData) fields() []configField {
+	return []configField{
+		{"holochain-version", d.HolochainVersion},
+		{"holo-keyutil-version", d.HoloKeyutilVersion},
+		{"bootstrap-url", d.BootstrapURL},
+		{"signal-url", d.SignalURL},
+		{"relay-url", d.RelayURL},
+		{"auth-server", d.AuthServer},
+		{"influx-url", d.InfluxURL},
+		{"influx-org", d.InfluxOrg},
+		{"influx-bucket", d.InfluxBucket},
+		{"influx-token", d.InfluxToken},
+	}
+}
+
+// secrets are the values that must never appear in an error message.
+func (d cloudInitData) secrets() []string {
+	return []string{d.InfluxToken}
 }
 
 var regions = []digitalocean.Region{
@@ -314,13 +342,39 @@ func ipsKey(nt nodeType, i int) string {
 // renderCloudInit reads the cloud-config template plus the shared base-image
 // files and renders them into the final cloud-init user-data.
 func renderCloudInit(data cloudInitData) (string, error) {
+	// Screened before rendering so the error names the key to fix; once these are
+	// interpolated, all the guard on the output can report is a byte offset - and
+	// for the token, one pointing into a blanked span.
+	for _, f := range data.fields() {
+		// Empty is the same slip as the padding below with no bytes at all -
+		// `pulumi config set heart:auth-server "$UNSET"` - and it is not inert:
+		// an empty holochain-version renders a release URL with a hole in it, so
+		// first-boot's `curl -f` 404s, `set -eo pipefail` kills the runcmd, and
+		// the droplet arrives with no conductor. Nothing here has an empty
+		// meaning, so refuse it rather than ship a node that fails at boot.
+		if f.val == "" {
+			return "", fmt.Errorf("config value 'heart:%s' is empty: cloud-init would render it as a hole in a URL or an unset variable, and the node fails at first boot with nothing reporting it", f.key)
+		}
+		if i := firstUnsafeValueByte(f.val); i >= 0 {
+			return "", fmt.Errorf("config value 'heart:%s' must be printable ASCII on one line, with no \" \\ $ %% or ` - one screen for every value, so it is the union of what those four bytes do across the conductor YAML, telegraf's TOML, systemd and the first-boot shell, and deliberately strict about a byte that only bites at one of them: byte %#x at position %d", f.key, f.val[i], i)
+		}
+		// The value never legitimately carries its own padding, and quoting it
+		// means the padding now survives to the node: a plain scalar trimmed a
+		// trailing space, a quoted one keeps it. Same `pulumi config set` slip as
+		// the trailing newline above, one byte less visible. The value is not
+		// echoed - heart:influx-token comes through here too.
+		if trimmed := strings.TrimSpace(f.val); trimmed != f.val {
+			return "", fmt.Errorf("config value 'heart:%s' must not begin or end with whitespace: it lands inside double quotes, which keep the padding an unquoted scalar would have trimmed (%d bytes set, %d without the padding)", f.key, len(f.val), len(trimmed))
+		}
+	}
+
 	raw, err := os.ReadFile("cloudinit/cloud-config.yaml")
 	if err != nil {
 		return "", fmt.Errorf("failed to read cloud-init config: %w", err)
 	}
 
 	// The invariant base-image files (cloudinit/base/) are the single source of
-	// truth shared with the local-testnet fleet image (automation/local/fleet/):
+	// truth shared with the local-testnet fleet image (automation/emulation/heart/):
 	// the two systemd units and the first-boot core. They are injected via
 	// cloud-init's `encoding: b64` so a multi-line file lands as one YAML scalar
 	// (no indentation gymnastics) and is byte-for-byte what the fleet Dockerfile
@@ -363,7 +417,94 @@ func renderCloudInit(data cloudInitData) (string, error) {
 	if err := tmpl.Execute(&buf, tmplData); err != nil {
 		return "", fmt.Errorf("failed to render cloud-init template: %w", err)
 	}
-	return buf.String(), nil
+	userData := buf.String()
+	if err := ensureCloudInitSafe(userData, data.secrets()); err != nil {
+		return "", err
+	}
+	return userData, nil
+}
+
+// firstUnsafeByte returns the index of the first byte cloud-init's YAML loader
+// would reject in the assembled document, or -1: printable ASCII plus
+// tab/newline/CR is the whole accepted set. Non-ASCII gives "unacceptable
+// character #x0080", a C0 control or DEL gives "control characters are not
+// allowed", and either one discards the whole document.
+func firstUnsafeByte(s string) int { return scanUnsafe(s, true) }
+
+// firstUnsafeValueByte is the same test tightened for a single interpolated
+// config value. Tab, newline and CR are never legitimate in one: the value is
+// dropped into a scalar, so a newline ends that scalar early and breaks the
+// surrounding YAML exactly as a non-ASCII byte does - a trailing newline from
+// `pulumi config set --secret ... < file` is the easy way in.
+//
+// Nor are the five bytes that stay live inside the double quotes every value
+// lands in. Being quoted is not one guarantee: the template interpolates into
+// four different embedded languages, and each keeps its own bytes special.
+//
+//	"  closes the scalar at all four sites.
+//	\  escapes at all four - YAML and TOML string escapes, systemd's C-style
+//	   escapes, and bash, where inside double quotes it is still special before
+//	   $ ` " \ and a newline, so a value ending in one eats the closing quote
+//	   and the script lines after it.
+//	$  expands in the first-boot shell, and in telegraf.conf, which substitutes
+//	   the environment before it parses the TOML.
+//	`  substitutes in the first-boot shell only.
+//	%  introduces a systemd specifier in Environment=. An unknown one ("%20"
+//	   from a percent-encoded URL) drops the whole assignment, at least leaving
+//	   a journal line; a KNOWN one ("%H", "%a") verifies clean and rewrites the
+//	   value in place, saying nothing at all. Telegraf reads the same URL from
+//	   TOML, where % is inert, so the two metrics sinks disagree rather than
+//	   both failing.
+//
+// The shell sites are the sharp ones: first-boot runs as root, so a "$(...)"
+// pasted into heart:auth-server would execute at boot and a bare ${VAR} would
+// silently empty the URL. Quoting is what makes a '#' or a ': ' in a URL
+// harmless; screening these five is what keeps the quoting itself intact.
+func firstUnsafeValueByte(s string) int { return scanUnsafe(s, false) }
+
+// scanUnsafe scans bytes rather than runes, so invalid UTF-8 is caught too.
+// document selects the looser rule the assembled user-data is held to; a single
+// interpolated value gets the stricter one above.
+func scanUnsafe(s string, document bool) int {
+	for i := 0; i < len(s); i++ {
+		switch b := s[i]; {
+		case document && (b == '\t' || b == '\n' || b == '\r'):
+		case b < 0x20 || b >= 0x7F:
+			return i
+		case !document && (b == '"' || b == '\\' || b == '$' || b == '`' || b == '%'):
+			return i
+		}
+	}
+	return -1
+}
+
+// ensureCloudInitSafe refuses to emit user-data cloud-init would reject. Its YAML
+// loader discards the ENTIRE config over one such byte, so the droplet boots with
+// none of its units and nothing says why - one em-dash in a comment is enough.
+//
+// This checks the rendered output, so it catches whatever actually reaches the
+// node; renderCloudInit screens the config values first, which is what lets the
+// common case name a key rather than an offset. secrets are blanked from the
+// snippet, cut from user-data that carries the InfluxDB token in clear text and
+// reaches Pulumi's error output verbatim. Blanking is equal-length and applied
+// before slicing, so offsets stay true and a window that clips a token cannot
+// expose the rest of it.
+func ensureCloudInitSafe(userData string, secrets []string) error {
+	i := firstUnsafeByte(userData)
+	if i < 0 {
+		return nil
+	}
+	masked := userData
+	for _, s := range secrets {
+		if s != "" {
+			masked = strings.ReplaceAll(masked, s, strings.Repeat("*", len(s)))
+		}
+	}
+	line := 1 + strings.Count(userData[:i], "\n")
+	// Clamped against masked's own length so a future non-equal-length blanking
+	// degrades the snippet rather than panicking on the slice.
+	start, end := max(0, min(i-40, len(masked))), max(0, min(i+40, len(masked)))
+	return fmt.Errorf("cloud-init user-data must be printable ASCII (cloud-init discards the whole config otherwise): byte %#x at offset %d, rendered line %d, near %q", userData[i], i, line, masked[start:end])
 }
 
 // readBaseFileB64 reads a shared base-image file (cloudinit/base/) and returns
