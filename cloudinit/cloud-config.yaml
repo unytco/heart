@@ -60,9 +60,9 @@ write_files:
       network:
         base64_auth_material_bootstrap: ~
         base64_auth_material_relay: ~
-        bootstrap_url: {{ .BootstrapURL }}
-        signal_url: {{ .SignalURL }}
-        relay_url: {{ .RelayURL }}
+        bootstrap_url: "{{ .BootstrapURL }}"
+        signal_url: "{{ .SignalURL }}"
+        relay_url: "{{ .RelayURL }}"
         target_arc_factor: 1
         advanced: null
         request_timeout_s: 60

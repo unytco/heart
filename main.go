@@ -346,8 +346,25 @@ func renderCloudInit(data cloudInitData) (string, error) {
 	// interpolated, all the guard on the output can report is a byte offset - and
 	// for the token, one pointing into a blanked span.
 	for _, f := range data.fields() {
+		// Empty is the same slip as the padding below with no bytes at all -
+		// `pulumi config set heart:auth-server "$UNSET"` - and it is not inert:
+		// an empty holochain-version renders a release URL with a hole in it, so
+		// first-boot's `curl -f` 404s, `set -eo pipefail` kills the runcmd, and
+		// the droplet arrives with no conductor. Nothing here has an empty
+		// meaning, so refuse it rather than ship a node that fails at boot.
+		if f.val == "" {
+			return "", fmt.Errorf("config value 'heart:%s' is empty: cloud-init would render it as a hole in a URL or an unset variable, and the node fails at first boot with nothing reporting it", f.key)
+		}
 		if i := firstUnsafeValueByte(f.val); i >= 0 {
-			return "", fmt.Errorf("config value 'heart:%s' must be printable ASCII on one line (cloud-init discards the whole config otherwise): byte %#x at position %d", f.key, f.val[i], i)
+			return "", fmt.Errorf("config value 'heart:%s' must be printable ASCII on one line, with no \" \\ $ %% or ` - one screen for every value, so it is the union of what those four bytes do across the conductor YAML, telegraf's TOML, systemd and the first-boot shell, and deliberately strict about a byte that only bites at one of them: byte %#x at position %d", f.key, f.val[i], i)
+		}
+		// The value never legitimately carries its own padding, and quoting it
+		// means the padding now survives to the node: a plain scalar trimmed a
+		// trailing space, a quoted one keeps it. Same `pulumi config set` slip as
+		// the trailing newline above, one byte less visible. The value is not
+		// echoed - heart:influx-token comes through here too.
+		if trimmed := strings.TrimSpace(f.val); trimmed != f.val {
+			return "", fmt.Errorf("config value 'heart:%s' must not begin or end with whitespace: it lands inside double quotes, which keep the padding an unquoted scalar would have trimmed (%d bytes set, %d without the padding)", f.key, len(f.val), len(trimmed))
 		}
 	}
 
@@ -415,18 +432,46 @@ func renderCloudInit(data cloudInitData) (string, error) {
 func firstUnsafeByte(s string) int { return scanUnsafe(s, true) }
 
 // firstUnsafeValueByte is the same test tightened for a single interpolated
-// config value, where tab, newline and CR are never legitimate: the value is
-// dropped into a plain or block scalar, so a newline ends the scalar early and
-// breaks the surrounding YAML exactly as a non-ASCII byte does. A trailing
-// newline from `pulumi config set --secret ... < file` is the easy way in.
+// config value. Tab, newline and CR are never legitimate in one: the value is
+// dropped into a scalar, so a newline ends that scalar early and breaks the
+// surrounding YAML exactly as a non-ASCII byte does - a trailing newline from
+// `pulumi config set --secret ... < file` is the easy way in.
+//
+// Nor are the five bytes that stay live inside the double quotes every value
+// lands in. Being quoted is not one guarantee: the template interpolates into
+// four different embedded languages, and each keeps its own bytes special.
+//
+//	"  closes the scalar at all four sites.
+//	\  escapes at all four - YAML and TOML string escapes, systemd's C-style
+//	   escapes, and bash, where inside double quotes it is still special before
+//	   $ ` " \ and a newline, so a value ending in one eats the closing quote
+//	   and the script lines after it.
+//	$  expands in the first-boot shell, and in telegraf.conf, which substitutes
+//	   the environment before it parses the TOML.
+//	`  substitutes in the first-boot shell only.
+//	%  introduces a systemd specifier in Environment=. An unknown one ("%20"
+//	   from a percent-encoded URL) drops the whole assignment, at least leaving
+//	   a journal line; a KNOWN one ("%H", "%a") verifies clean and rewrites the
+//	   value in place, saying nothing at all. Telegraf reads the same URL from
+//	   TOML, where % is inert, so the two metrics sinks disagree rather than
+//	   both failing.
+//
+// The shell sites are the sharp ones: first-boot runs as root, so a "$(...)"
+// pasted into heart:auth-server would execute at boot and a bare ${VAR} would
+// silently empty the URL. Quoting is what makes a '#' or a ': ' in a URL
+// harmless; screening these five is what keeps the quoting itself intact.
 func firstUnsafeValueByte(s string) int { return scanUnsafe(s, false) }
 
 // scanUnsafe scans bytes rather than runes, so invalid UTF-8 is caught too.
-func scanUnsafe(s string, allowWhitespace bool) int {
+// document selects the looser rule the assembled user-data is held to; a single
+// interpolated value gets the stricter one above.
+func scanUnsafe(s string, document bool) int {
 	for i := 0; i < len(s); i++ {
 		switch b := s[i]; {
-		case allowWhitespace && (b == '\t' || b == '\n' || b == '\r'):
+		case document && (b == '\t' || b == '\n' || b == '\r'):
 		case b < 0x20 || b >= 0x7F:
+			return i
+		case !document && (b == '"' || b == '\\' || b == '$' || b == '`' || b == '%'):
 			return i
 		}
 	}
