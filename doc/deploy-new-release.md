@@ -19,8 +19,8 @@ Two release fleets therefore coexist cleanly in the same DigitalOcean project wi
   ```bash
   nix develop
   ```
-- A DigitalOcean API token and an SSH key already added to the DigitalOcean account.
-- The InfluxDB token for metrics shipping.
+- **The DigitalOcean and InfluxDB tokens in `heart/.env`** — copy `heart/.env.example` to `heart/.env` and set `DIGITALOCEAN_TOKEN` (the DigitalOcean API token) and `INFLUX_TOKEN` (the InfluxDB token for metrics shipping). `make new-release` reads them and stores them as encrypted per-stack secrets, so you don't paste them by hand. `heart/.env` is gitignored.
+- An SSH key already added to the DigitalOcean account.
 - **Cloudflare credentials for the automation deploy** (the joining-service redeploy and other wrangler steps need them). Copy `automation/.env.example` to `automation/.env` and set `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`; the automation Makefile auto-loads `.env`. The deploy fails fast up front if these are missing, so set them before running any `make <role>`.
 - **Metrics default to the shared `unyt` InfluxDB bucket** — no setup needed. Optionally, to isolate a release's metrics, override `heart:influx-bucket` with a bucket that already exists in InfluxDB (this program does not create it).
 
@@ -32,19 +32,17 @@ Two release fleets therefore coexist cleanly in the same DigitalOcean project wi
 make new-release RELEASE=v0-7-0
 ```
 
-This runs `pulumi stack init`, selects the stack, sets `heart:release`, and prints the remaining values to set.
+This selects the stack (creating it on first run), sets `heart:release` and `heart:project-name`, and reads `DIGITALOCEAN_TOKEN` + `INFLUX_TOKEN` from `heart/.env` to set the `digitalocean:token` and `heart:influx-token` stack secrets. It fails loudly if `heart/.env` or either token is missing, and re-running it is safe — it just re-sets the same values.
 
-### 2. Set the required config
+### 2. (Optional) Isolate this release's metrics
+
+`make new-release` already set the required secrets from `heart/.env`; inspect the stack's config any time with `make config`. Secrets are encrypted per-stack, so each release carries its own copy of the tokens.
+
+Metrics ship to the shared `unyt` InfluxDB bucket by default. To give this release its own metrics instead, point it at a bucket that already exists in InfluxDB (this program does not create it):
 
 ```bash
-pulumi config set --secret digitalocean:token   # paste DO token
-pulumi config set --secret heart:influx-token    # paste InfluxDB token
-pulumi config set heart:project-name  unyt
+pulumi config set heart:influx-bucket <existing-bucket>
 ```
-
-Metrics ship to the shared `unyt` InfluxDB bucket by default. To isolate this release's metrics instead, also `pulumi config set heart:influx-bucket <existing-bucket>`.
-
-Secrets are encrypted per-stack and cannot be copied from another stack's config file — set them fresh for each release.
 
 ### 3. (Optional) Override anything else
 

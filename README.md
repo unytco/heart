@@ -54,6 +54,8 @@ See [Deploying a New Release Fleet](./doc/deploy-new-release.md) for the deploy 
 
 ## Pulumi setup
 
+> For a release fleet you don't run these by hand: `make new-release RELEASE=<v>` reads `DIGITALOCEAN_TOKEN` and `INFLUX_TOKEN` from a gitignored `heart/.env` (copy [`heart/.env.example`](./.env.example)) and sets `digitalocean:token`, `heart:influx-token`, `heart:project-name` and `heart:release` for you. The commands below are the underlying config keys, for reference or one-off overrides.
+
 Configure the digital ocean token using:
 
 ```shell
