@@ -9,7 +9,7 @@
 ## Stack
 
 - **Go** `1.25.6` (`go.mod`) + **Pulumi** Go SDK (`Pulumi.yaml`, `main.go`) — the provisioning program.
-- **Rust** crate `holo-keyutil/` (edition 2021; pins `lair_keystore_api = "=0.6.3"`, `holo_hash = "0.6.1"`).
+- **Rust** crate `holo-keyutil/` (edition 2021; pins `lair_keystore_api = "=0.7.1"`, `holo_hash = "0.7.0"`).
 - **`flake.nix`** bundles `pulumi`, `pulumi-go`, `go`, `jq` — **`nix develop -c` is required** for the go / pulumi commands below.
 
 ## Build
