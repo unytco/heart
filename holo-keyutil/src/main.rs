@@ -138,14 +138,26 @@ mod tests {
             ("not base64url", "u!!!!".to_string()),
             ("too short", format!("u{}", B64.encode([0u8; 38]))),
             ("too long", format!("u{}", B64.encode([0u8; 40]))),
-            // Same 39-byte shape, DnaHash type prefix (uhC0k): accepted by a
-            // length check alone, and its bytes 3..35 are not a public key.
-            ("a DnaHash", AGENT.replacen("uhCAk", "uhC0k", 1)),
         ] {
             assert!(
                 extract_pubkey(&input).is_err(),
                 "{name}: extract_pubkey({input:?}) should not have succeeded"
             );
         }
+    }
+
+    #[test]
+    fn rejects_a_hash_of_another_type() {
+        // Same 39-byte shape with a DnaHash prefix (uhC0k), so length and base64
+        // both pass and only holo_hash's prefix check stands between it and 32
+        // bytes of DNA hash sent to the auth server as somebody's public key.
+        // Asserted on the message, since every other case here is also is_err().
+        let err = extract_pubkey(&AGENT.replacen("uhCAk", "uhC0k", 1))
+            .expect_err("a DnaHash is not an AgentPubKey")
+            .to_string();
+        assert!(
+            err.contains("not an AgentPubKey") && err.contains("unknown prefix"),
+            "error should name the prefix check, got {err:?}"
+        );
     }
 }

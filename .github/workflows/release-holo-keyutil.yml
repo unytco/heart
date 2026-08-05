@@ -19,6 +19,13 @@ jobs:
         with:
           workspaces: holo-keyutil
 
+      # The uploaded binary is what every droplet's first boot downloads, and no
+      # other workflow builds this crate - so a tag is the only chance to catch a
+      # break before a fleet does.
+      - name: Test
+        run: cargo test
+        working-directory: holo-keyutil
+
       - name: Build
         run: cargo build --release
         working-directory: holo-keyutil

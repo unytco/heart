@@ -634,23 +634,37 @@ func TestRenderCloudInitConductorConfigIsValidFor07(t *testing.T) {
 		}
 	}
 
-	// Keys whose ABSENCE is the failure, which an allow-list cannot see. The
-	// first three Holochain requires outright. The fourth it happily defaults,
-	// but holochain-register rewrites that line with `sed`, and sed exits 0
-	// having matched nothing - so the node reports "Registration complete" and
-	// simply never carries auth material to the bootstrap server.
-	for _, req := range []struct {
+	// Keys whose ABSENCE is the failure, which an allow-list cannot see. All but
+	// the last are ones a released 0.7 refuses to start without. The last it
+	// happily defaults, but holochain-register rewrites that line with `sed`, and
+	// sed exits 0 having matched nothing - so the node reports "Registration
+	// complete" and simply never carries auth material to the bootstrap server.
+	//
+	// Hand-written rather than read off the schema's `required` arrays, which
+	// answer a different question: ConductorConfig has no `required` at all and
+	// still rejects a missing data_root_path after the parse, while
+	// NetworkConfig lists `advanced`, which serde accepts absent.
+	required := []struct {
 		section string
 		in      map[string]any
 		key     string
 	}{
+		{"", config, "data_root_path"},
 		{"keystore", keystore, "connection_url"},
 		{"network", network, "bootstrap_url"},
 		{"network", network, "relay_url"},
 		{"network", network, "base64_auth_material_bootstrap"},
-	} {
+	}
+	for what, driver := range drivers {
+		required = append(required, struct {
+			section string
+			in      map[string]any
+			key     string
+		}{what + ".driver", driver, "allowed_origins"})
+	}
+	for _, req := range required {
 		if _, set := req.in[req.key]; !set {
-			t.Errorf("%s omits %s.%s - Holochain requires it, or holochain-register's sed rewrites nothing and says so to no one", conductorPath, req.section, req.key)
+			t.Errorf("%s omits %s%s - Holochain requires it, or holochain-register's sed rewrites nothing and says so to no one", conductorPath, req.section+".", req.key)
 		}
 	}
 
@@ -1133,24 +1147,40 @@ func TestCloudInitTreeIsASCII(t *testing.T) {
 // asserted rather than being read from the schema at run time: the cheap gate has
 // to work everywhere, and this one upgrades it to authoritative wherever a
 // matching binary exists. Point HEART_HOLOCHAIN_BIN at one to run it explicitly.
+//
+// Setting that variable is asking for the check, so anything that would stop it
+// running is then a failure rather than a skip. Otherwise the documented
+// invocation degrades in silence - heart's own dev shell ships no holochain, so
+// `HEART_HOLOCHAIN_BIN=$(which holochain)` expands to nothing there, and a run
+// that verified none of this still prints ok.
 func TestConductorConfigKeysMatchHolochainSchema(t *testing.T) {
-	bin := os.Getenv("HEART_HOLOCHAIN_BIN")
-	if bin == "" {
+	bin, asked := os.LookupEnv("HEART_HOLOCHAIN_BIN")
+	// An empty value is a `$(which holochain)` that found nothing, not a request.
+	if asked && bin == "" {
+		t.Fatal("HEART_HOLOCHAIN_BIN is set but empty - it was probably $(which holochain) on a machine without one")
+	}
+	if !asked {
 		var err error
 		if bin, err = exec.LookPath("holochain"); err != nil {
 			t.Skip("no holochain on PATH and HEART_HOLOCHAIN_BIN unset; the hand-derived lists stand unverified in this run")
 		}
 	}
 
+	unusable := t.Skipf
+	if asked {
+		unusable = t.Fatalf
+	}
 	version, err := exec.Command(bin, "--version").Output()
 	if err != nil {
 		t.Fatalf("%s --version: %v", bin, err)
 	}
 	// A 0.8 binary would "disagree" with lists that are correct for the version
 	// we deploy, which is a different finding than a wrong list - and one this
-	// test is not the place to report.
+	// test is not the place to report. Still a failure if it was asked for by
+	// name: whoever set the variable wanted these lists checked.
 	if got := strings.TrimSpace(string(version)); !strings.HasPrefix(got, "holochain 0.7.") {
-		t.Skipf("%s is %q, not the 0.7.x line these lists describe", bin, got)
+		unusable("%s is %q, not the 0.7.x line these lists describe", bin, got)
+		return
 	}
 
 	raw, err := exec.Command(bin, "--config-schema").Output()

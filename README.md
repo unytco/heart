@@ -149,7 +149,8 @@ Once the node is registered (check `systemctl status holochain-register.service`
 `--agent-key` takes the full `uhCAk…` `AgentPubKey`. `agent-pub-key` on disk holds the raw key, not that form (see the table above), so mint a key to install under — or omit `--agent-key` entirely and let `install-app` generate one:
 
 ```shell
-AGENT_KEY=$(hc client call --port 8800 new-agent | tr -d '"')
+# awk END{} because hc's tracing subscriber prints to stdout when RUST_LOG is set
+AGENT_KEY=$(hc client call --port 8800 new-agent | awk 'END{print $NF}' | tr -d '"')
 hc client call --port 8800 install-app \
     --app-id "your-app-id" \
     --agent-key "${AGENT_KEY}" \
