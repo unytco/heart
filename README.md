@@ -131,7 +131,7 @@ Everything lives under `/var/lib/holochain/`:
 | `data/` | Conductor databases and state |
 | `lair/` | Lair keystore data |
 | `lair-passphrase` | Passphrase used to unlock the lair keystore (`root:lair`, mode 640 — the `lair` group lets co-located non-root services read it to sign via lair). Needed if you ever have to inspect the keystore directly. |
-| `agent-pub-key` | The node's agent public key as base64url. **This is the key you need when installing an app** — pass it as `--agent-key` to `hc sandbox call`. |
+| `agent-pub-key` | The node's **raw** ed25519 public key as base64url, extracted by `holo-keyutil extract-pubkey` for the auth server. Note this is *not* an `--agent-key` value: `install-app` wants the full `uhCAk…` `AgentPubKey`, which only `new-agent` prints and the node does not persist. |
 
 ### Services
 
@@ -146,9 +146,11 @@ Everything lives under `/var/lib/holochain/`:
 
 Once the node is registered (check `systemctl status holochain-register.service`):
 
+`--agent-key` takes the full `uhCAk…` `AgentPubKey`. `agent-pub-key` on disk holds the raw key, not that form (see the table above), so mint a key to install under — or omit `--agent-key` entirely and let `install-app` generate one:
+
 ```shell
-AGENT_KEY=$(cat /var/lib/holochain/agent-pub-key)
-hc sandbox call --running 8800 install-app \
+AGENT_KEY=$(hc client call --port 8800 new-agent | tr -d '"')
+hc client call --port 8800 install-app \
     --app-id "your-app-id" \
     --agent-key "${AGENT_KEY}" \
     /path/to/your-app.happ
@@ -162,12 +164,16 @@ hc sandbox call --running 8800 install-app \
 - `holo-keyutil extract-pubkey` — parses a Holochain `AgentPubKey` and extracts the raw ed25519 bytes
 
 It is built and published by the `release-holo-keyutil` GitHub Actions workflow when a
-tag is pushed. Droplets download the binary directly from that release at first boot;
-the version is controlled by the `heart:holo-keyutil-version` config key (default `v0.1.0`).
+`v*` tag is pushed — the tag names the release, so bump `holo-keyutil/Cargo.toml`'s
+`version` to match it. Droplets download the binary directly from that release at first
+boot; the version is controlled by the `heart:holo-keyutil-version` config key (default
+`v0.2.0`).
+
+**The pinned version must already have a published release before any `pulumi up`.** First boot `curl -fsSL`s the binary from it under `set -eo pipefail`, so a tag that does not exist yet 404s, kills the whole first-boot script before it enables a single service, and the droplet arrives with no conductor, lair, telegraf or registration.
 
 To use a new build, cut a release and point a stack at it:
 
 ```shell
-git tag v0.2.0 && git push origin v0.2.0   # wait for the Actions workflow to finish
-pulumi config set heart:holo-keyutil-version v0.2.0
+git tag v0.3.0 && git push origin v0.3.0   # wait for the Actions workflow to finish
+pulumi config set heart:holo-keyutil-version v0.3.0
 ```

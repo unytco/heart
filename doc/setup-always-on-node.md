@@ -86,7 +86,7 @@ ssh root@YOUR_DROPLET_IP
 cat /var/lib/holochain/agent-pub-key
 ```
 
-Use this key when installing apps — see the README for the exact `hc sandbox call` command.
+That file holds the **raw** ed25519 key the auth server registered, not the `uhCAk…` `AgentPubKey` that `install-app --agent-key` takes — the node never persists that form. So install under a key from Option 2 or 3, or omit `--agent-key` and let `install-app` generate one.
 
 ### Option 2: Generate a New Key within Lair
 
@@ -95,12 +95,12 @@ Generate an additional key directly in the Lair keystore on your node:
 ```bash
 ssh root@YOUR_DROPLET_IP
 
-hc sandbox call --running 8800 new-agent
+hc client call --port 8800 new-agent
 ```
 
-Output example:
+Output example — the key as a JSON string, which is all `new-agent` prints:
 ```
-hc-sandbox: Added agent uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm
+"uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm"
 ```
 
 Save this agent key — you'll need it for app installation.
@@ -154,18 +154,18 @@ curl -L -o /var/lib/holochain/apps/your-app.happ https://your-app-url.com/your-a
 
 #### If you used Option 1 (Auto-generated key):
 
+The node's own key is not available in `--agent-key` form (see Option 1), so let `install-app` mint one:
+
 ```bash
-AGENT_KEY=$(cat /var/lib/holochain/agent-pub-key)
-hc sandbox call --running 8800 install-app \
+hc client call --port 8800 install-app \
   --app-id "your-app-id" \
-  --agent-key "${AGENT_KEY}" \
   /var/lib/holochain/apps/your-app.happ
 ```
 
 #### If you used Option 2 or 3 (Pre-existing key):
 
 ```bash
-hc sandbox call --running 8800 install-app \
+hc client call --port 8800 install-app \
   --app-id "your-app-id" \
   --agent-key uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm \
   /var/lib/holochain/apps/your-app.happ
@@ -175,10 +175,10 @@ hc sandbox call --running 8800 install-app \
 
 ```bash
 # List installed apps
-hc sandbox call --running 8800 list-apps
+hc client call --port 8800 list-apps
 
-# Enable the app if needed
-hc sandbox call --running 8800 enable-app --app-id "your-app-id"
+# Enable the app if needed (app id is positional here, unlike install-app's --app-id)
+hc client call --port 8800 enable-app "your-app-id"
 ```
 
 ## Post-Installation
@@ -218,7 +218,7 @@ journalctl -u lair-keystore --no-pager -l
 
 ```bash
 # Test admin interface
-hc sandbox call --running 8800 list-apps
+hc client call --port 8800 list-apps
 
 # Check if ports are open
 ss -tlnp | grep 8800
