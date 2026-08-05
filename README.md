@@ -131,7 +131,7 @@ Everything lives under `/var/lib/holochain/`:
 | `data/` | Conductor databases and state |
 | `lair/` | Lair keystore data |
 | `lair-passphrase` | Passphrase used to unlock the lair keystore (`root:lair`, mode 640 — the `lair` group lets co-located non-root services read it to sign via lair). Needed if you ever have to inspect the keystore directly. |
-| `agent-pub-key` | The node's **raw** ed25519 public key as base64url, extracted by `holo-keyutil extract-pubkey` for the auth server. Note this is *not* an `--agent-key` value: `install-app` wants the full `uhCAk…` `AgentPubKey`, which only `new-agent` prints and the node does not persist. |
+| `agent-pub-key` | The node's agent key in **raw** ed25519 form, base64url — the 32 bytes `holo-keyutil extract-pubkey` produced for the auth server. This is the key itself, not a fingerprint of it: the `uhCAk…` `AgentPubKey` is the same bytes re-encoded (`uhCAk` prefix + key + a DHT location computed from the key), so this file identifies the node's agent. It is not directly an `--agent-key` value, though — that wants the `uhCAk…` form, and nothing on the droplet re-encodes back to it. |
 
 ### Services
 
@@ -146,7 +146,7 @@ Everything lives under `/var/lib/holochain/`:
 
 Once the node is registered (check `systemctl status holochain-register.service`):
 
-`--agent-key` takes the full `uhCAk…` `AgentPubKey`. `agent-pub-key` on disk holds the raw key, not that form (see the table above), so mint a key to install under — or omit `--agent-key` entirely and let `install-app` generate one:
+`--agent-key` takes the `uhCAk…` `AgentPubKey`. The node's own key is on disk in raw form and in lair (see the table above), but nothing here re-encodes it to `uhCAk…`, so mint a key to install under — or omit `--agent-key` entirely and let `install-app` generate one:
 
 ```shell
 # awk END{} because hc's tracing subscriber prints to stdout when RUST_LOG is set

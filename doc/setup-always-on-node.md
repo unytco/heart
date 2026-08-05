@@ -86,7 +86,7 @@ ssh root@YOUR_DROPLET_IP
 cat /var/lib/holochain/agent-pub-key
 ```
 
-That file holds the **raw** ed25519 key the auth server registered, not the `uhCAk…` `AgentPubKey` that `install-app --agent-key` takes — the node never persists that form. So install under a key from Option 2 or 3, or omit `--agent-key` and let `install-app` generate one.
+That file holds the node's key in **raw** ed25519 form — the form the auth server registered, and the same key the `uhCAk…` `AgentPubKey` encodes (`uhCAk` prefix + these bytes + a DHT location derived from them). `install-app --agent-key` takes that `uhCAk…` form, and nothing on the droplet converts back to it, so install under a key from Option 2 or 3, or omit `--agent-key` and let `install-app` generate one.
 
 ### Option 2: Generate a New Key within Lair
 
