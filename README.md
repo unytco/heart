@@ -131,7 +131,7 @@ Everything lives under `/var/lib/holochain/`:
 | `data/` | Conductor databases and state |
 | `lair/` | Lair keystore data |
 | `lair-passphrase` | Passphrase used to unlock the lair keystore (`root:lair`, mode 640 — the `lair` group lets co-located non-root services read it to sign via lair). Needed if you ever have to inspect the keystore directly. |
-| `agent-pub-key` | The node's agent key in **raw** ed25519 form, base64url — the 32 bytes `holo-keyutil extract-pubkey` produced for the auth server. This is the key itself, not a fingerprint of it: the `uhCAk…` `AgentPubKey` is the same bytes re-encoded (`uhCAk` prefix + key + a DHT location computed from the key), so this file identifies the node's agent. It is not directly an `--agent-key` value, though — that wants the `uhCAk…` form, and nothing on the droplet re-encodes back to it. |
+| `agent-pub-key` | The node's agent key in **raw** ed25519 form, base64url — the 32 bytes `holo-keyutil extract-pubkey` produced for the auth server. This is the key itself, not a fingerprint of it: the `uhCAk…` `AgentPubKey` is those 32 bytes re-encoded (`u` + base64url of a 3-byte type prefix that prints as `hCAk`, the key, and a 4-byte DHT location derived from it), so this file identifies the node's agent. It is not directly an `--agent-key` value, though — that wants the `uhCAk…` form, and nothing on the droplet re-encodes back to it. |
 
 ### Services
 
