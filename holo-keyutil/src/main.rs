@@ -72,22 +72,80 @@ async fn main() -> anyhow::Result<()> {
             println!("{}", B64.encode(signature.0.as_ref()));
         }
         Command::ExtractPubkey { agent_pub_key } => {
-            let input = agent_pub_key.trim();
-
-            // AgentPubKey holo_hash format: u<base64url([3-byte prefix][32-byte key][4-byte DHT loc])>
-            let b64_part = input
-                .strip_prefix('u')
-                .ok_or_else(|| anyhow::anyhow!("missing multibase 'u' prefix"))?;
-
-            let raw = B64.decode(b64_part)?;
-            anyhow::ensure!(raw.len() == 39, "expected 39 decoded bytes, got {}", raw.len());
-
-            // Validate using holo_hash — checks the type prefix bytes are correct for AgentPubKey
-            let _ = AgentPubKey::from_raw_39(raw.clone());
-
-            // Raw ed25519 key occupies bytes 3..35
-            println!("{}", B64.encode(&raw[3..35]));
+            println!("{}", extract_pubkey(&agent_pub_key)?);
         }
     }
     Ok(())
+}
+
+/// Extract the raw ed25519 key from an AgentPubKey holo_hash string, as base64url.
+///
+/// This is what registration sends to the auth server, so every rejection here is
+/// a node that never registers - worth an error naming the reason rather than the
+/// panic `AgentPubKey::from_raw_39` would raise on a hash of the wrong type.
+fn extract_pubkey(agent_pub_key: &str) -> anyhow::Result<String> {
+    // AgentPubKey holo_hash format: u<base64url([3-byte prefix][32-byte key][4-byte DHT loc])>
+    let b64_part = agent_pub_key
+        .trim()
+        .strip_prefix('u')
+        .ok_or_else(|| anyhow::anyhow!("missing multibase 'u' prefix"))?;
+
+    let raw = B64.decode(b64_part)?;
+    anyhow::ensure!(
+        raw.len() == 39,
+        "expected 39 decoded bytes, got {}",
+        raw.len()
+    );
+
+    // Rejects a well-formed hash of some other type - a DnaHash has the same
+    // shape, and its bytes 3..35 are a DNA hash, not anybody's public key.
+    AgentPubKey::try_from_raw_39(raw.clone())
+        .map_err(|e| anyhow::anyhow!("not an AgentPubKey: {e}"))?;
+
+    // Raw ed25519 key occupies bytes 3..35
+    Ok(B64.encode(&raw[3..35]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A real AgentPubKey and the raw key it carries. Golden rather than
+    // round-tripped: the point is that the bytes reaching the auth server do not
+    // move when the holo_hash dependency does, and a value derived through the
+    // same library would shift with it silently.
+    const AGENT: &str = "uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm";
+    const RAW: &str = "N5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SI";
+
+    #[test]
+    fn extracts_the_raw_key() {
+        assert_eq!(extract_pubkey(AGENT).unwrap(), RAW);
+    }
+
+    #[test]
+    fn tolerates_surrounding_whitespace() {
+        // The caller is a shell pipeline, so a trailing newline is the norm.
+        assert_eq!(extract_pubkey(&format!(" {AGENT}\n")).unwrap(), RAW);
+    }
+
+    #[test]
+    fn rejects_malformed_input() {
+        for (name, input) in [
+            (
+                "no multibase prefix",
+                AGENT.trim_start_matches('u').to_string(),
+            ),
+            ("not base64url", "u!!!!".to_string()),
+            ("too short", format!("u{}", B64.encode([0u8; 38]))),
+            ("too long", format!("u{}", B64.encode([0u8; 40]))),
+            // Same 39-byte shape, DnaHash type prefix (uhC0k): accepted by a
+            // length check alone, and its bytes 3..35 are not a public key.
+            ("a DnaHash", AGENT.replacen("uhCAk", "uhC0k", 1)),
+        ] {
+            assert!(
+                extract_pubkey(&input).is_err(),
+                "{name}: extract_pubkey({input:?}) should not have succeeded"
+            );
+        }
+    }
 }
