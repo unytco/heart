@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -61,7 +63,7 @@ func TestLoadDefaults(t *testing.T) {
 	// omits it would fail at `pulumi up`.
 	wantKeys := []string{
 		"holochain-version", "holo-keyutil-version",
-		"bootstrap-url", "signal-url", "relay-url", "auth-server",
+		"bootstrap-url", "relay-url", "auth-server",
 		"influx-url", "influx-org", "influx-bucket",
 	}
 	// The per-node-type size/count keys are derived from the registry so this
@@ -80,6 +82,17 @@ func TestLoadDefaults(t *testing.T) {
 		if _, err := strconv.Atoi(defaults[nt.countKey]); err != nil {
 			t.Errorf("%s[%q]=%q is not an integer: %v", defaultsFile, nt.countKey, defaults[nt.countKey], err)
 		}
+	}
+
+	// The conductor-config allow-lists are a snapshot of ONE Holochain version's
+	// serde contract. TestConductorConfigKeysMatchHolochainSchema checks them
+	// against a real binary, but it skips where there is none - which is CI - so
+	// on its own a bump here would leave them silently describing the wrong
+	// version, and a key 0.7 allowed but 0.8 removed would reach a droplet rather
+	// than a test. Failing on the pin is what always forces the re-derive.
+	if want := "holochain-0.7."; !strings.HasPrefix(defaults["holochain-version"], want) {
+		t.Errorf("%s[%q]=%q is no longer a %sx release: re-derive conductorConfigKeys07, networkConfigKeys07, adminInterfaceKeys07, keystoreKeys07, websocketDriverKeys07 and dbSyncLevels07 against that version (run TestConductorConfigKeysMatchHolochainSchema with HEART_HOLOCHAIN_BIN set to its binary), then update this check",
+			defaultsFile, "holochain-version", defaults["holochain-version"], want)
 	}
 
 	// A default is interpolated into cloud-init exactly as a stack value is, so
@@ -106,10 +119,9 @@ func TestLoadDefaults(t *testing.T) {
 // value is distinct, so an assertion cannot be satisfied by the wrong field.
 func validCloudInitData() cloudInitData {
 	return cloudInitData{
-		HolochainVersion:   "holochain-0.6.2-rc.0",
-		HoloKeyutilVersion: "v0.1.0",
+		HolochainVersion:   "holochain-0.7.0",
+		HoloKeyutilVersion: "v0.2.0",
 		BootstrapURL:       "https://bootstrap.example",
-		SignalURL:          "http://not-used:1234",
 		RelayURL:           "https://relay.example",
 		AuthServer:         "https://auth.example",
 		InfluxURL:          "https://influx.example",
@@ -413,7 +425,7 @@ func TestRenderCloudInitRejectsPaddedValue(t *testing.T) {
 }
 
 // TestRenderCloudInitConductorURLs pins what the CONDUCTOR receives, which is
-// not what cloud-init receives: bootstrap/signal/relay are interpolated into
+// not what cloud-init receives: bootstrap and relay are interpolated into
 // /etc/holochain/conductor-config.yaml, a second YAML document nested inside the
 // user-data as a literal block scalar. A block scalar is literal, so a '#' or a
 // ': ' in a URL is invisible to the outer parse - cloud-init writes the file out
@@ -423,7 +435,6 @@ func TestRenderCloudInitRejectsPaddedValue(t *testing.T) {
 // '#' comments the value away to null. Quoting is the fix; this checks the
 // consumer gets the URL back, not the quotes with it.
 func TestRenderCloudInitConductorURLs(t *testing.T) {
-	const conductorPath = "/etc/holochain/conductor-config.yaml"
 	base := validCloudInitData()
 	for name, shape := range map[string]string{
 		"plain":        "https://%s.example",
@@ -433,57 +444,28 @@ func TestRenderCloudInitConductorURLs(t *testing.T) {
 		"leading hash": "#%s.example",
 	} {
 		t.Run(name, func(t *testing.T) {
-			// All three at once, so a quote missed on any one of the three
-			// template lines fails here rather than hiding behind the others -
-			// and each carries its own name, so a swap between the three
-			// adjacent lines (bootstrap reading the relay URL, a fleet with no
-			// bootstrap peer) fails too rather than matching by coincidence.
+			// Both at once, so a quote missed on either of the two template
+			// lines fails here rather than hiding behind the other - and each
+			// carries its own name, so a swap between the two adjacent lines
+			// (bootstrap reading the relay URL, a fleet with no bootstrap peer)
+			// fails too rather than matching by coincidence.
 			want := map[string]string{
 				"bootstrap_url": fmt.Sprintf(shape, "bootstrap"),
-				"signal_url":    fmt.Sprintf(shape, "signal"),
 				"relay_url":     fmt.Sprintf(shape, "relay"),
 			}
 			data := base
 			data.BootstrapURL = want["bootstrap_url"]
-			data.SignalURL = want["signal_url"]
 			data.RelayURL = want["relay_url"]
-			out, err := renderCloudInit(data)
-			if err != nil {
-				t.Fatalf("renderCloudInit: %v", err)
-			}
-
-			var parsed struct {
-				WriteFiles []struct {
-					Path    string `yaml:"path"`
-					Content string `yaml:"content"`
-				} `yaml:"write_files"`
-			}
-			if err := yaml.Unmarshal([]byte(out), &parsed); err != nil {
-				t.Fatalf("rendered cloud-init is not valid YAML: %v", err)
-			}
-			conductor := ""
-			for _, wf := range parsed.WriteFiles {
-				if wf.Path == conductorPath {
-					conductor = wf.Content
-				}
-			}
-			if conductor == "" {
-				t.Fatalf("rendered cloud-init has no %s write_files entry", conductorPath)
-			}
 
 			var inner struct {
 				Network struct {
 					BootstrapURL string `yaml:"bootstrap_url"`
-					SignalURL    string `yaml:"signal_url"`
 					RelayURL     string `yaml:"relay_url"`
 				} `yaml:"network"`
 			}
-			if err := yaml.Unmarshal([]byte(conductor), &inner); err != nil {
-				t.Fatalf("%s is not valid YAML - the conductor would refuse to start: %v", conductorPath, err)
-			}
+			renderConductorConfig(t, data, &inner)
 			for field, got := range map[string]string{
 				"bootstrap_url": inner.Network.BootstrapURL,
-				"signal_url":    inner.Network.SignalURL,
 				"relay_url":     inner.Network.RelayURL,
 			} {
 				if got != want[field] {
@@ -492,6 +474,271 @@ func TestRenderCloudInitConductorURLs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// conductorPath is the second YAML document nested in the user-data: written out
+// by cloud-init, but parsed by Holochain, so its own validity is a separate
+// question from the user-data's (see TestRenderCloudInitConductorURLs).
+const conductorPath = "/etc/holochain/conductor-config.yaml"
+
+// renderConductorConfig renders the cloud-config, pulls conductorPath's content
+// back out of the write_files, and unmarshals it into the caller's value. Every
+// failure along the way is fatal: a caller that got no config would otherwise
+// assert against a zero value and pass.
+func renderConductorConfig(t *testing.T, data cloudInitData, into any) {
+	t.Helper()
+	out, err := renderCloudInit(data)
+	if err != nil {
+		t.Fatalf("renderCloudInit: %v", err)
+	}
+	var parsed struct {
+		WriteFiles []struct {
+			Path    string `yaml:"path"`
+			Content string `yaml:"content"`
+		} `yaml:"write_files"`
+	}
+	if err := yaml.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("rendered cloud-init is not valid YAML: %v", err)
+	}
+	conductor := ""
+	for _, wf := range parsed.WriteFiles {
+		if wf.Path == conductorPath {
+			conductor = wf.Content
+		}
+	}
+	if conductor == "" {
+		t.Fatalf("rendered cloud-init has no %s write_files entry", conductorPath)
+	}
+	if err := yaml.Unmarshal([]byte(conductor), into); err != nil {
+		t.Fatalf("%s is not valid YAML - the conductor would refuse to start: %v", conductorPath, err)
+	}
+}
+
+// The keys Holochain 0.7 knows in each of the five mappings the template writes,
+// derived from holochain_conductor_api 0.7.0 (src/config/conductor.rs,
+// config/interface.rs, config/conductor/keystore_config.rs). Every one of those
+// types is #[serde(deny_unknown_fields)], so these are allow-lists, not hints.
+// TestConductorConfigKeysMatchHolochainSchema re-derives them from the released
+// binary whenever one is on PATH, and TestLoadDefaults fails on a version bump -
+// between them, a hand edit here that drifts from Holochain does not stay quiet.
+//
+// They describe a PRODUCTION build: the three kitsune disable_* fields on
+// NetworkConfig are #[cfg(feature = "test-utils")], so a released holochain
+// binary rejects them exactly as it would a typo, and listing them here would
+// wave through a config no fleet can boot.
+var (
+	conductorConfigKeys07 = map[string]bool{
+		"tracing_override": true, "wasm_backend": true, "data_root_path": true,
+		"keystore": true, "admin_interfaces": true, "network": true,
+		"db_sync_level": true, "db_max_readers": true,
+		"incoming_request_concurrency_limit": true, "restore_chain_quorum": true,
+		"tuning_params": true, "tracing_scope": true,
+	}
+	networkConfigKeys07 = map[string]bool{
+		"base64_auth_material_bootstrap": true, "base64_auth_material_relay": true,
+		"bootstrap_url": true, "relay_url": true, "request_timeout_s": true,
+		"target_arc_factor": true, "report": true, "advanced": true,
+	}
+	adminInterfaceKeys07 = map[string]bool{"driver": true}
+	// KeystoreConfig and InterfaceDriver are internally tagged enums: `type`
+	// selects the variant, and only that variant's own fields may sit beside it.
+	// So these two lists are only the right lists while the config still names
+	// the variant they were taken from - which is why the discriminators are
+	// asserted below rather than allow-listed like any other key.
+	keystoreVariant07     = "lair_server"
+	keystoreKeys07        = map[string]bool{"type": true, "connection_url": true}
+	driverVariant07       = "websocket"
+	websocketDriverKeys07 = map[string]bool{
+		"type": true, "port": true, "danger_bind_addr": true, "allowed_origins": true,
+	}
+	// 0.7 renamed db_sync_strategy to db_sync_level and dropped the Fast variant
+	// we ran on 0.6. The key is omitted from the template to take the default
+	// (Normal); this is what a re-added `Fast` would fail.
+	dbSyncLevels07 = map[string]bool{"Full": true, "Normal": true, "Off": true}
+)
+
+// TestRenderCloudInitConductorConfigIsValidFor07 is the closest a Go test gets to
+// "0.7 would accept this file". Every type in it is #[serde(deny_unknown_fields)],
+// so a key 0.7 does not know is not ignored - the parse fails, holochain.service
+// never opens its admin port, and the droplet arrives with no conductor and
+// nothing saying why. That is precisely how 0.6's signal_url and db_sync_strategy
+// would land on a 0.7 node, and it is invisible to every other test here: the
+// user-data stays valid cloud-init either way.
+//
+// Three shapes, because an unknown key is only the loudest of them. Unknown keys
+// across all five mappings; the two enum discriminators, since a changed variant
+// silently swaps which key set is even the right one; and the keys something
+// downstream requires - Holochain itself, or a sed in the register script that
+// exits 0 when it matches nothing. It still cannot check types, so a real 0.7
+// parse remains the fleet-verify step.
+func TestRenderCloudInitConductorConfigIsValidFor07(t *testing.T) {
+	var config map[string]any
+	renderConductorConfig(t, validCloudInitData(), &config)
+	if len(config) == 0 {
+		t.Fatalf("%s parsed to no keys at all - the scan is not reading the file", conductorPath)
+	}
+
+	// admin_interfaces is a list; the template writes exactly one entry, and each
+	// entry is {driver: {...}}. Indexed so a second entry cannot go unchecked.
+	interfaces, ok := config["admin_interfaces"].([]any)
+	if !ok || len(interfaces) == 0 {
+		t.Fatalf("%s has no admin_interfaces list (got %T) - nothing could reach the conductor", conductorPath, config["admin_interfaces"])
+	}
+	network := asMap(t, "network", config["network"])
+	keystore := asMap(t, "keystore", config["keystore"])
+
+	type mapping struct {
+		what  string
+		got   map[string]any
+		known map[string]bool
+	}
+	checks := []mapping{
+		{"ConductorConfig", config, conductorConfigKeys07},
+		{"NetworkConfig", network, networkConfigKeys07},
+		{"KeystoreConfig", keystore, keystoreKeys07},
+	}
+	drivers := map[string]map[string]any{}
+	for i, iface := range interfaces {
+		what := fmt.Sprintf("admin_interfaces[%d]", i)
+		entry := asMap(t, what, iface)
+		driver := asMap(t, what+".driver", entry["driver"])
+		drivers[what] = driver
+		// The entry itself, not only its driver: AdminInterfaceConfig denies
+		// unknown fields too, so `port:` written one level too high - the easy
+		// slip with a two-level shape - is fatal in exactly the same way.
+		checks = append(checks, mapping{what, entry, adminInterfaceKeys07}, mapping{what + ".driver", driver, websocketDriverKeys07})
+	}
+	for _, tc := range checks {
+		for k := range tc.got {
+			if !tc.known[k] {
+				t.Errorf("%s sets %s.%s, which Holochain 0.7 does not know: deny_unknown_fields makes it a fatal parse error, so the node boots with no conductor", conductorPath, tc.what, k)
+			}
+		}
+	}
+
+	// The discriminators the two key sets above were taken from. A different
+	// variant is not an unknown key, so nothing above would notice - it would
+	// just be checking the wrong variant's fields against the right variant's.
+	if got := keystore["type"]; got != keystoreVariant07 {
+		t.Errorf("keystore.type = %v, want %q - keystoreKeys07 describes that variant and no other", got, keystoreVariant07)
+	}
+	for what, driver := range drivers {
+		if got := driver["type"]; got != driverVariant07 {
+			t.Errorf("%s.type = %v, want %q - websocketDriverKeys07 describes that variant and no other", what, got, driverVariant07)
+		}
+		// danger_bind_addr is the one value worth pinning by name: heart creates
+		// no firewall, so a droplet's admin websocket is one non-null value away
+		// from the public internet, and 0.7 accepts it without comment.
+		if got := driver["danger_bind_addr"]; got != nil {
+			t.Errorf("%s.danger_bind_addr = %v, want null - a bound admin websocket on a droplet with no firewall lets anyone who reaches it control the conductor", what, got)
+		}
+	}
+
+	// Keys whose ABSENCE is the failure, which an allow-list cannot see. The
+	// first three Holochain requires outright. The fourth it happily defaults,
+	// but holochain-register rewrites that line with `sed`, and sed exits 0
+	// having matched nothing - so the node reports "Registration complete" and
+	// simply never carries auth material to the bootstrap server.
+	for _, req := range []struct {
+		section string
+		in      map[string]any
+		key     string
+	}{
+		{"keystore", keystore, "connection_url"},
+		{"network", network, "bootstrap_url"},
+		{"network", network, "relay_url"},
+		{"network", network, "base64_auth_material_bootstrap"},
+	} {
+		if _, set := req.in[req.key]; !set {
+			t.Errorf("%s omits %s.%s - Holochain requires it, or holochain-register's sed rewrites nothing and says so to no one", conductorPath, req.section, req.key)
+		}
+	}
+
+	if level, set := config["db_sync_level"]; set {
+		if s, ok := level.(string); !ok || !dbSyncLevels07[s] {
+			t.Errorf("db_sync_level = %v, want one of Full/Normal/Off (0.7 dropped 0.6's Fast)", level)
+		}
+	}
+}
+
+// TestRenderCloudInitConductorConfigCouplings pins the three values the conductor
+// config shares with a shell script somewhere else in the user-data. Holochain
+// accepts either side of each on its own, so nothing above can see them: they
+// fail only as behaviour on a booted droplet, and quietly.
+//
+// The admin port is the loud one - register's `nc -z` loop just times out, and
+// systemd retries it forever (StartLimitIntervalSec=0). The other two are silent:
+// both are `sed` targets, and sed exits 0 when it matches nothing, so first boot
+// and registration each report success over a conductor config they did not
+// actually patch - one left holding a placeholder for a lair URL, the other never
+// given auth material at all.
+func TestRenderCloudInitConductorConfigCouplings(t *testing.T) {
+	out, err := renderCloudInit(validCloudInitData())
+	if err != nil {
+		t.Fatalf("renderCloudInit: %v", err)
+	}
+	firstBootCore, err := os.ReadFile("cloudinit/base/first-boot-core.sh")
+	if err != nil {
+		t.Fatalf("read first-boot-core.sh: %v", err)
+	}
+
+	var config struct {
+		Keystore struct {
+			ConnectionURL string `yaml:"connection_url"`
+		} `yaml:"keystore"`
+		AdminInterfaces []struct {
+			Driver struct {
+				Port int `yaml:"port"`
+			} `yaml:"driver"`
+		} `yaml:"admin_interfaces"`
+	}
+	renderConductorConfig(t, validCloudInitData(), &config)
+	if len(config.AdminInterfaces) == 0 {
+		t.Fatal("conductor config declares no admin interface")
+	}
+
+	// The register script waits on, then dials, a hard-coded ADMIN_PORT.
+	if want := fmt.Sprintf("ADMIN_PORT=%d", config.AdminInterfaces[0].Driver.Port); !strings.Contains(out, want) {
+		t.Errorf("conductor listens on %d but no script sets %q - registration would wait out its 60s and retry forever", config.AdminInterfaces[0].Driver.Port, want)
+	}
+	// first-boot-core.sh seds the lair connection URL over this placeholder.
+	if placeholder := config.Keystore.ConnectionURL; !strings.Contains(string(firstBootCore), placeholder) {
+		t.Errorf("conductor config carries keystore.connection_url %q, which first-boot-core.sh never rewrites - the conductor would start against a placeholder", placeholder)
+	}
+	// holochain-register seds the bootstrap auth material over its line.
+	if !strings.Contains(out, "s|base64_auth_material_bootstrap:") {
+		t.Error("no script rewrites base64_auth_material_bootstrap - the node would register and then never authenticate to the bootstrap server")
+	}
+}
+
+// TestFirstBootUsesTheHc07AgentCommand pins the third thing 0.7 moved. `hc
+// sandbox call` no longer exists (`call` became `hc client call --port`, in a
+// new hc_client crate), and this is the line that mints the node's agent key -
+// so reverting it strands first boot with an unrecognised subcommand. It is a
+// shell line inside rendered user-data, which no Go test can execute; asserting
+// the rendered text is the most that can be checked before a real droplet.
+func TestFirstBootUsesTheHc07AgentCommand(t *testing.T) {
+	out, err := renderCloudInit(validCloudInitData())
+	if err != nil {
+		t.Fatalf("renderCloudInit: %v", err)
+	}
+	if !strings.Contains(out, `hc client call --port "${ADMIN_PORT}" new-agent`) {
+		t.Error("first boot does not create the agent key with `hc client call --port ... new-agent`")
+	}
+	if strings.Contains(out, "hc sandbox call") {
+		t.Error("rendered user-data still calls `hc sandbox call`, which Holochain 0.7 removed")
+	}
+}
+
+// asMap fails rather than returning an empty map for a missing or mistyped
+// section, so a block that stopped rendering cannot read as clean.
+func asMap(t *testing.T, what string, v any) map[string]any {
+	t.Helper()
+	m, ok := v.(map[string]any)
+	if !ok {
+		t.Fatalf("%s has no `%s` mapping (got %T) - a section the conductor needs stopped rendering", conductorPath, what, v)
+	}
+	return m
 }
 
 // TestCloudInitTemplateQuotesEveryAction holds half of what the value screen
@@ -871,4 +1118,121 @@ func TestCloudInitTreeIsASCII(t *testing.T) {
 	if want := 4; seen < want {
 		t.Fatalf("walked %d files under cloudinit/, want at least %d", seen, want)
 	}
+}
+
+// TestConductorConfigKeysMatchHolochainSchema re-derives the allow-lists above
+// from the horse's mouth: `holochain --config-schema` prints the conductor
+// config's JSON schema, generated from the very serde types that will parse the
+// file on the droplet. It is the difference between a hand-copied snapshot and a
+// checked one - without it the lists are only as good as whoever last read the
+// Rust, and they are wrong in exactly the way that boots a fleet with no
+// conductor.
+//
+// Skipped when no holochain is on PATH, which is the case in CI (ubuntu-latest +
+// setup-go, no nix). That is why the lists stay hand-written and separately
+// asserted rather than being read from the schema at run time: the cheap gate has
+// to work everywhere, and this one upgrades it to authoritative wherever a
+// matching binary exists. Point HEART_HOLOCHAIN_BIN at one to run it explicitly.
+func TestConductorConfigKeysMatchHolochainSchema(t *testing.T) {
+	bin := os.Getenv("HEART_HOLOCHAIN_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("holochain"); err != nil {
+			t.Skip("no holochain on PATH and HEART_HOLOCHAIN_BIN unset; the hand-derived lists stand unverified in this run")
+		}
+	}
+
+	version, err := exec.Command(bin, "--version").Output()
+	if err != nil {
+		t.Fatalf("%s --version: %v", bin, err)
+	}
+	// A 0.8 binary would "disagree" with lists that are correct for the version
+	// we deploy, which is a different finding than a wrong list - and one this
+	// test is not the place to report.
+	if got := strings.TrimSpace(string(version)); !strings.HasPrefix(got, "holochain 0.7.") {
+		t.Skipf("%s is %q, not the 0.7.x line these lists describe", bin, got)
+	}
+
+	raw, err := exec.Command(bin, "--config-schema").Output()
+	if err != nil {
+		t.Fatalf("%s --config-schema: %v", bin, err)
+	}
+	var schema struct {
+		Title      string                 `json:"title"`
+		Properties map[string]any         `json:"properties"`
+		Defs       map[string]schemaEntry `json:"$defs"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("parse --config-schema output: %v", err)
+	}
+	if schema.Title != "ConductorConfig" {
+		t.Fatalf("--config-schema describes %q, not ConductorConfig", schema.Title)
+	}
+
+	for _, tc := range []struct {
+		name string
+		want map[string]bool
+		got  map[string]any
+	}{
+		{"conductorConfigKeys07", conductorConfigKeys07, schema.Properties},
+		{"networkConfigKeys07", networkConfigKeys07, schema.Defs["NetworkConfig"].Properties},
+		{"adminInterfaceKeys07", adminInterfaceKeys07, schema.Defs["AdminInterfaceConfig"].Properties},
+		{"keystoreKeys07", keystoreKeys07, variantProperties(t, schema.Defs["KeystoreConfig"], keystoreVariant07)},
+		{"websocketDriverKeys07", websocketDriverKeys07, variantProperties(t, schema.Defs["InterfaceDriver"], driverVariant07)},
+	} {
+		if len(tc.got) == 0 {
+			t.Errorf("%s: the schema has no such mapping - this test is not reading what it thinks it is", tc.name)
+			continue
+		}
+		for k := range tc.got {
+			if !tc.want[k] {
+				t.Errorf("%s is missing %q, which this holochain accepts", tc.name, k)
+			}
+		}
+		for k := range tc.want {
+			if _, ok := tc.got[k]; !ok {
+				t.Errorf("%s allows %q, which this holochain does not know - a config using it would not parse", tc.name, k)
+			}
+		}
+	}
+
+	// DbSyncLevel is a plain string enum, so its variants come from the consts.
+	levels := map[string]bool{}
+	for _, v := range schema.Defs["DbSyncLevel"].OneOf {
+		levels[v.Const] = true
+	}
+	if !reflect.DeepEqual(levels, dbSyncLevels07) {
+		t.Errorf("dbSyncLevels07 = %v, but this holochain accepts %v", dbSyncLevels07, levels)
+	}
+}
+
+// schemaEntry is the slice of JSON-schema shape these lists need: a plain object
+// has Properties, an internally-tagged enum has a OneOf of them, each pinning its
+// discriminator with a Const.
+type schemaEntry struct {
+	Properties map[string]any `json:"properties"`
+	OneOf      []struct {
+		Const      string `json:"const"`
+		Properties map[string]struct {
+			Const string `json:"const"`
+		} `json:"properties"`
+	} `json:"oneOf"`
+}
+
+// variantProperties returns the property names of one variant of a tagged enum,
+// found by the `const` its `type` property is pinned to.
+func variantProperties(t *testing.T, e schemaEntry, variant string) map[string]any {
+	t.Helper()
+	for _, v := range e.OneOf {
+		if v.Properties["type"].Const != variant {
+			continue
+		}
+		props := map[string]any{}
+		for k := range v.Properties {
+			props[k] = struct{}{}
+		}
+		return props
+	}
+	t.Errorf("the schema has no %q variant", variant)
+	return nil
 }

@@ -54,7 +54,6 @@ type cloudInitData struct {
 	HolochainVersion   string
 	HoloKeyutilVersion string
 	BootstrapURL       string
-	SignalURL          string
 	RelayURL           string
 	AuthServer         string
 	InfluxURL          string
@@ -75,7 +74,6 @@ func (d cloudInitData) fields() []configField {
 		{"holochain-version", d.HolochainVersion},
 		{"holo-keyutil-version", d.HoloKeyutilVersion},
 		{"bootstrap-url", d.BootstrapURL},
-		{"signal-url", d.SignalURL},
 		{"relay-url", d.RelayURL},
 		{"auth-server", d.AuthServer},
 		{"influx-url", d.InfluxURL},
@@ -226,10 +224,6 @@ func createFleet(ctx *pulumi.Context) (pulumi.StringArray, error) {
 	if err != nil {
 		return nil, err
 	}
-	signalURL, err := cfgOr(ctx, defaults, "signal-url")
-	if err != nil {
-		return nil, err
-	}
 	relayURL, err := cfgOr(ctx, defaults, "relay-url")
 	if err != nil {
 		return nil, err
@@ -255,7 +249,6 @@ func createFleet(ctx *pulumi.Context) (pulumi.StringArray, error) {
 		HolochainVersion:   holochainVersion,
 		HoloKeyutilVersion: holoKeyutilVersion,
 		BootstrapURL:       bootstrapURL,
-		SignalURL:          signalURL,
 		RelayURL:           relayURL,
 		AuthServer:         authServer,
 		InfluxURL:          influxURL,

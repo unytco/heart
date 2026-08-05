@@ -1,6 +1,6 @@
 [package]
 name = "holo-keyutil"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # lair_keystore_api version must be compatible with the lair-keystore binary

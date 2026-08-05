@@ -33,9 +33,13 @@ nix develop -c gofmt -l .                       # check: prints files needing fo
 
 ```bash
 nix develop -c go test ./...
+( cd holo-keyutil && cargo test )                          # key helper
+HEART_HOLOCHAIN_BIN=$(which holochain) nix develop -c go test ./...   # see below
 ```
 
 `main_test.go` covers release-name validation, IP-key generation, defaults loading, cloud-init rendering and the ASCII guard on the rendered user-data — **parsing/validation logic only, no live DigitalOcean**. Verify provisioning changes with `nix develop -c pulumi preview` (dry-run) and Pulumi mocks, **not** by SSHing into prod and pasting logs.
+
+`TestConductorConfigKeysMatchHolochainSchema` is the exception that wants a binary: it re-derives the conductor-config allow-lists from `holochain --config-schema`, so a hand edit that drifts from the real serde contract fails instead of shipping. It **skips** when there is no `holochain` on `PATH` (which is CI's case), so run it with `HEART_HOLOCHAIN_BIN` pointing at the pinned release whenever you touch `cloudinit/`'s conductor config or bump `heart:holochain-version`.
 
 ## Deploy
 
