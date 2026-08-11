@@ -11,6 +11,12 @@
 STACK ?=
 PULUMI_STACK := $(if $(STACK),--stack $(STACK),)
 
+# The Pulumi organization release stacks are created under. Every stack name is
+# org-qualified, so a machine whose `pulumi org get-default` is unset or personal cannot
+# silently create the fleet in an individual account where the rest of the team can't see
+# or manage it. Override only to target a different org: make new-release PULUMI_ORG=...
+PULUMI_ORG ?= unyt
+
 .DEFAULT_GOAL := help
 
 help: ## Show this help
@@ -39,28 +45,32 @@ fmt: ## Format the Pulumi program
 # (RELEASE_ENV) and is only ever quoted, so metacharacters can't reach a command
 # boundary. .env is sourced without `set -a`, so the tokens aren't exported to Pulumi's
 # child processes; they reach the stack only via `printf '%s'` over stdin (no trailing
-# newline — one corrupts the rendered cloud-init) and are never echoed. Every config
-# write pins `--stack` to the validated release so an inherited PULUMI_STACK can't
-# redirect it off that stack.
+# newline — one corrupts the rendered cloud-init) and are never echoed. The stack is
+# created and every config write pinned as the org-qualified "$ORG/$REL", so neither an
+# inherited PULUMI_STACK nor an unset/personal `pulumi org get-default` can redirect the
+# stack off the release — or off the organization.
 new-release: export RELEASE_ENV := $(RELEASE)
 new-release: ## Init a new release stack, config from heart/.env: make new-release RELEASE=v0-7-0
 	@set -e; \
 	REL="$$RELEASE_ENV"; \
 	test -n "$$REL" || { echo "RELEASE is required, e.g. make new-release RELEASE=v0-7-0" >&2; exit 1; }; \
 	case "$$REL" in ''|*[!a-zA-Z0-9_-]*) echo "RELEASE must match ^[a-zA-Z0-9_-]+\$$ (letters, digits, '-', '_') - e.g. v0-7-0, not v0.7.0" >&2; exit 1;; esac; \
+	ORG="$(PULUMI_ORG)"; \
+	case "$$ORG" in ''|*[!a-zA-Z0-9_-]*) echo "PULUMI_ORG must match ^[a-zA-Z0-9_-]+\$$ - got '$$ORG'" >&2; exit 1;; esac; \
+	QUAL="$$ORG/$$REL"; \
 	test -f ./.env || { echo "heart/.env not found - copy heart/.env.example to heart/.env and set DIGITALOCEAN_TOKEN and INFLUX_TOKEN" >&2; exit 1; }; \
 	. ./.env; \
 	: "$${DIGITALOCEAN_TOKEN:?missing from heart/.env (see heart/.env.example)}"; \
 	: "$${INFLUX_TOKEN:?missing from heart/.env (see heart/.env.example)}"; \
 	case "$$DIGITALOCEAN_TOKEN" in *[[:space:][:cntrl:]]*) echo "DIGITALOCEAN_TOKEN in heart/.env must not contain whitespace or control characters" >&2; exit 1;; esac; \
 	case "$$INFLUX_TOKEN" in *[[:space:][:cntrl:]]*) echo "INFLUX_TOKEN in heart/.env must not contain whitespace or control characters" >&2; exit 1;; esac; \
-	pulumi stack select --create "$$REL"; \
-	pulumi config set heart:release "$$REL" --stack "$$REL"; \
-	pulumi config set heart:project-name unyt --stack "$$REL"; \
-	printf '%s' "$$DIGITALOCEAN_TOKEN" | pulumi config set --secret digitalocean:token --stack "$$REL" --; \
-	printf '%s' "$$INFLUX_TOKEN" | pulumi config set --secret heart:influx-token --stack "$$REL" --; \
+	pulumi stack select --create "$$QUAL"; \
+	pulumi config set heart:release "$$REL" --stack "$$QUAL"; \
+	pulumi config set heart:project-name unyt --stack "$$QUAL"; \
+	printf '%s' "$$DIGITALOCEAN_TOKEN" | pulumi config set --secret digitalocean:token --stack "$$QUAL" --; \
+	printf '%s' "$$INFLUX_TOKEN" | pulumi config set --secret heart:influx-token --stack "$$QUAL" --; \
 	echo; \
-	echo "Stack '$$REL' ready: heart:release and heart:project-name (unyt) set,"; \
+	echo "Stack '$$QUAL' ready: heart:release and heart:project-name (unyt) set,"; \
 	echo "digitalocean:token + heart:influx-token read from heart/.env."; \
 	echo "Metrics default to the shared 'unyt' InfluxDB bucket. To isolate this"; \
 	echo "release's metrics, set heart:influx-bucket to a bucket that already exists."; \
