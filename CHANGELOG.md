@@ -27,9 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump `holo-keyutil` Rust deps to the 0.7 line (`lair_keystore_api = "=0.7.1"`, `holo_hash = "0.7.0"`); the `v0.2.0` release carries this build to the fleet.
 - `make new-release` reads `DIGITALOCEAN_TOKEN`/`INFLUX_TOKEN` from a gitignored `heart/.env` and sets `digitalocean:token` + `heart:influx-token` + `heart:project-name` on the stack.
 - The cloud-init base (systemd units + first-boot core) is factored into `cloudinit/base/` as the single shared source, so the local-testnet fleet image consumes the same bytes and cannot drift from prod; the InfluxDB metrics env moved to a prod-only `holochain.service.d/10-metrics.conf` drop-in. Rendered user-data changed.
-- Default fleet shrinks to 4 droplets per release: `always-online-count` and `unyt-bridging-count` default to `0`, `notary-count` to `1` (single-notary). Re-enabling a role is a count bump plus restoring its config from `automation/config/disabled/`.
-- Bump cloud-init `HOLOCHAIN_VERSION` and holo-keyutil deps to Holochain 0.6.2-rc.0.
-- Deploy model is one Pulumi stack per unyt release, namespaced by `heart:release`; versions, network endpoints, InfluxDB config and droplet sizes/counts are per-release config keys with defaults in `defaults.yaml`. See `Pulumi.release.yaml.example` and `doc/deploy-new-release.md`.
+- Default fleet shrinks to 4 droplets per release: `always-online-count` and `unyt-bridging-count` default to `0`, `notary-count` to `1` (single-notary). Re-enabling a role is a count bump plus restoring its config from `automation/config/disabled/`.- Deploy model is one Pulumi stack per unyt release, namespaced by `heart:release`; versions, network endpoints, InfluxDB config and droplet sizes/counts are per-release config keys with defaults in `defaults.yaml`. See `Pulumi.release.yaml.example` and `doc/deploy-new-release.md`.
 - Makefile reworked around the Pulumi per-release workflow (`make new-release`, `preview`, `up`, `destroy`); dropped the dead Terraform/Vagrant targets.
 
 ### Removed
