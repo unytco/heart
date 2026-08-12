@@ -49,8 +49,12 @@ pulumi config set heart:influx-bucket <existing-bucket>
 Everything else has a default in [`defaults.yaml`](../defaults.yaml) (edit that file to change a default for all releases). Override only what differs for this release with `pulumi config set`. The full list of keys is in [`Pulumi.release.yaml.example`](../Pulumi.release.yaml.example). Common ones:
 
 ```bash
-# Pin a different Holochain version for this release
-pulumi config set heart:holochain-version holochain-0.6.2
+# Pin this release's binaries explicitly, even when they match defaults.yaml:
+# a stack with no pin reads whatever that file says today, so it stops recording
+# which versions its droplets actually booted on.
+# Both must name an existing release; first boot curl -f's them under `set -e`.
+pulumi config set heart:holochain-version holochain-0.7.0
+pulumi config set heart:holo-keyutil-version v0.2.0
 
 # Give the release its own network endpoints (see the caveat below)
 pulumi config set heart:bootstrap-url https://hc-auth-iroh-unyt-v0-7-0.holochain.org/

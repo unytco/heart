@@ -6,13 +6,12 @@
 # NOT listed here (required per stack, no default): release, project-name, influx-token.
 # Counts are quoted so they parse as strings, matching how Pulumi stores config.
 
-holochain-version: holochain-0.6.2-rc.0
-holo-keyutil-version: v0.1.0
+holochain-version: holochain-0.7.0
+holo-keyutil-version: v0.2.0
 
 # Network identity. Override per release for an isolated network (and remember the
 # DNA network seed is applied at .happ install time, not here).
 bootstrap-url: https://hc-auth-iroh-unyt.holochain.org/
-signal-url: http://not-used:1234
 relay-url: https://iroh-relay-unyt.holochain.org
 auth-server: https://hc-auth-iroh-unyt.holochain.org
 

@@ -41,6 +41,13 @@ write_files:
   # initialised (see holochain-first-boot). base64_auth_material_bootstrap and
   # base64_auth_material_relay are patched by holochain-register.service once an
   # admin approves the node on the auth server.
+  #
+  # Holochain parses this with #[serde(deny_unknown_fields)], so a key it does not
+  # know is a fatal parse error and the node boots with no conductor at all - which
+  # is why 0.6's signal_url and db_sync_strategy are absent rather than commented
+  # out. db_sync_strategy became db_sync_level and lost the Fast variant we used;
+  # the key is omitted to take 0.7's default (Normal). Both are pinned by
+  # TestRenderCloudInitConductorConfigIsValidFor07.
   - path: /etc/holochain/conductor-config.yaml
     permissions: "0640"
     owner: root:root
@@ -61,12 +68,10 @@ write_files:
         base64_auth_material_bootstrap: ~
         base64_auth_material_relay: ~
         bootstrap_url: "{{ .BootstrapURL }}"
-        signal_url: "{{ .SignalURL }}"
         relay_url: "{{ .RelayURL }}"
         target_arc_factor: 1
         advanced: null
         request_timeout_s: 60
-      db_sync_strategy: Fast
       tuning_params: null
       tracing_scope: null
 
@@ -197,8 +202,17 @@ write_files:
           echo "Holochain ready"
 
           echo "Creating agent key..."
-          HC_OUTPUT=$(/usr/local/bin/hc sandbox call --running "${ADMIN_PORT}" new-agent 2>&1)
-          AGENT_KEY=$(echo "${HC_OUTPUT}" | awk '{print $NF}' | tr -d '"')
+          # new-agent prints the key as a bare JSON string and nothing else, so the
+          # last field of the LAST line is it. END{} rather than a per-line print
+          # because stderr is folded in for the diagnostic below and hc links a
+          # tracing subscriber (it writes to stdout whenever RUST_LOG is set): one
+          # extra line ahead of the key and a per-line print would set AGENT_KEY to
+          # two lines, which is not empty, so the guard below passes it on. It fails
+          # a step later at extract-pubkey rather than corrupting anything - this
+          # just makes it fail here, saying which. Neither form survives a stray
+          # line printed AFTER the key; nothing observed does that.
+          HC_OUTPUT=$(/usr/local/bin/hc client call --port "${ADMIN_PORT}" new-agent 2>&1)
+          AGENT_KEY=$(echo "${HC_OUTPUT}" | awk 'END{print $NF}' | tr -d '"')
           if [ -z "${AGENT_KEY}" ]; then
               echo "ERROR: failed to parse agent key from: ${HC_OUTPUT}" >&2
               exit 1

@@ -27,14 +27,13 @@ config:
   # heart:influx-token  -> set with `pulumi config set --secret heart:influx-token ...`
 
   # --- versions (defaults shown) ---
-  heart:holochain-version: holochain-0.6.2-rc.0
-  heart:holo-keyutil-version: v0.1.0
+  heart:holochain-version: holochain-0.7.0
+  heart:holo-keyutil-version: v0.2.0
 
   # --- network identity (defaults = shared unyt infra) ---
   # Override these to give the release its own network. Note: DNA-level network
   # seed isolation is applied at .happ install time, not here.
   heart:bootstrap-url: https://hc-auth-iroh-unyt.holochain.org/
-  heart:signal-url: http://not-used:1234
   heart:relay-url: https://iroh-relay-unyt.holochain.org
   heart:auth-server: https://hc-auth-iroh-unyt.holochain.org
 

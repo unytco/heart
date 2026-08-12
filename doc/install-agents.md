@@ -12,9 +12,10 @@ Once you have a server running, we can start talking about installing an agent. 
 mkdir /var/lib/holochain/apps/
 
 # downloading the app to be installed
-curl -L -o /var/lib/holochain/infra/unyt.happ https://github.com/unytco/unyt-infra-marketplace/releases/download/v0.1.0/unyt.happ
+curl -L -o /var/lib/holochain/apps/unyt.happ https://github.com/unytco/unyt-infra-marketplace/releases/download/v0.1.0/unyt.happ
 
-hc sandbox call --running 8800 install-app --app-id "hf-bridging"  /var/lib/holochain/unyt-sandbox/unyt.happ co.unyt.tx5.sandbox-0.49
+# the trailing argument is the network seed, applied to every DNA in the app
+hc client call --port 8800 install-app --app-id "hf-bridging" /var/lib/holochain/apps/unyt.happ co.unyt.tx5.sandbox-0.49
 ```
 
 ## Setting up an agent with a pre-existing public key
@@ -23,15 +24,15 @@ hc sandbox call --running 8800 install-app --app-id "hf-bridging"  /var/lib/holo
 # /bin/bash
 
 # create a new agent
-hc sandbox call --running 8800 new-agent
+hc client call --port 8800 new-agent
 
 ```
 
-Output:
+Output — the key as a JSON string, which is all `new-agent` prints:
 
 ```bash
-root@heart-node:~# hc sandbox call --running 8800 new-agent
-hc-sandbox: Added agent uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm
+root@heart-node:~# hc client call --port 8800 new-agent
+"uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm"
 ```
 
 ## Importing an agent key into lair
@@ -44,8 +45,8 @@ For importing keys generated with `hc_seed_bundle_cli`, see the [Always-On Node 
 # /bin/bash
 
 # install the app
-hc sandbox call --running 8800 install-app --app-id "domino-progenitor" --agent-key uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm /var/lib/holochain/apps/domino.happ
+hc client call --port 8800 install-app --app-id "domino-progenitor" --agent-key uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm /var/lib/holochain/apps/domino.happ
 
 # Verify the app is installed
-hc sandbox call --running 8800 list-apps
+hc client call --port 8800 list-apps
 ```
