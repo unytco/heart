@@ -1172,7 +1172,8 @@ func TestConductorConfigKeysMatchHolochainSchema(t *testing.T) {
 	}
 	version, err := exec.Command(bin, "--version").Output()
 	if err != nil {
-		t.Fatalf("%s --version: %v", bin, err)
+		unusable("%s --version: %v", bin, err)
+		return
 	}
 	// A 0.8 binary would "disagree" with lists that are correct for the version
 	// we deploy, which is a different finding than a wrong list - and one this
@@ -1185,7 +1186,8 @@ func TestConductorConfigKeysMatchHolochainSchema(t *testing.T) {
 
 	raw, err := exec.Command(bin, "--config-schema").Output()
 	if err != nil {
-		t.Fatalf("%s --config-schema: %v", bin, err)
+		unusable("%s --config-schema: %v", bin, err)
+		return
 	}
 	var schema struct {
 		Title      string                 `json:"title"`

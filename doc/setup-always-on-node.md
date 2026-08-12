@@ -99,7 +99,8 @@ hc client call --port 8800 new-agent
 ```
 
 Output example — the key as a JSON string, which is all `new-agent` prints:
-```
+
+```text
 "uhCAkN5IokFxdryZWUzR6Nb89wjVsiENaXp8uGsKbGJpT1SKxPzEm"
 ```
 
