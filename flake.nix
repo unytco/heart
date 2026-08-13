@@ -39,6 +39,7 @@
               jq
               python315
               curl
+              cloudflared
             ];
           };
         };
