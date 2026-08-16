@@ -759,7 +759,7 @@ func asMap(t *testing.T, what string, v any) map[string]any {
 // rests on: every value lands inside double quotes, which is what carries a '#'
 // or a ': ' into the conductor config intact, and a {{ . }} added bare reopens
 // that hole silently - the rendered document stays valid cloud-init either way,
-// which is what makes it worth a gate rather than a note in AGENTS.md.
+// which is what makes it worth a gate rather than a note in a doc.
 //
 // It is only half. Quoted is not the same as safe: the screen's byte list is
 // per-language (see firstUnsafeValueByte), and a quote count cannot tell which
