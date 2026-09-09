@@ -57,7 +57,7 @@ new-release: ## Init a new release stack, config from heart/.env: make new-relea
 	case "$$REL" in ''|*[!a-zA-Z0-9_-]*) echo "RELEASE must match ^[a-zA-Z0-9_-]+\$$ (letters, digits, '-', '_') - e.g. v0-7-0, not v0.7.0" >&2; exit 1;; esac; \
 	ORG="$(PULUMI_ORG)"; \
 	case "$$ORG" in ''|*[!a-zA-Z0-9_-]*) echo "PULUMI_ORG must match ^[a-zA-Z0-9_-]+\$$ - got '$$ORG'" >&2; exit 1;; esac; \
-	QUAL="$$ORG/$$REL"; \
+	QUAL="organization/$$ORG/$$REL"; \
 	test -f ./.env || { echo "heart/.env not found - copy heart/.env.example to heart/.env and set DIGITALOCEAN_TOKEN and INFLUX_TOKEN" >&2; exit 1; }; \
 	. ./.env; \
 	: "$${DIGITALOCEAN_TOKEN:?missing from heart/.env (see heart/.env.example)}"; \
