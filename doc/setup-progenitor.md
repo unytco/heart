@@ -19,7 +19,7 @@ This identical-property requirement is the crux: a cell's DNA hash is derived fr
 
 ## Procedure
 
-Run in order. Steps 1–5 stand up the progenitor and record its outputs; step 6 configures the Holo Hosting network once the metered agents exist.
+Run in order. Steps 1–5 stand up the progenitor and record its outputs; step 6 configures the Holo Hosting network once the metered agents exist, and step 7 extends its settings.
 
 1. **Prepare `release.json`** (automation repo) for the new release **before** running the progenitor:
    - `release_version` → the dotted label, e.g. `v0.93.0`
@@ -32,6 +32,7 @@ Run in order. Steps 1–5 stand up the progenitor and record its outputs; step 6
 4. **Record the progenitor key for the joiners**: set `release.json` `properties.progenitor_pubkey` to the agent key from step 3. Every joining node then installs the `alliance` DNA with this same property, so its cell hash matches the progenitor's — the equality that lets it see the progenitor's network and GlobalDefinition. A mismatch here is the classic silent failure: joiners land on a different DNA and never converge.
 5. **Deploy the service nodes** in dependency order (see [`deploy-new-release.md`](./deploy-new-release.md) § Bring nodes into service): `make blockchain-bridging` and `make hf-swapper` first (their agent keys feed the agreements), then the rest.
 6. **Configure the Holo Hosting network**: once blockchain-bridging + hf-swapper are up, run `unyt_cli progenitor holo-hosting setup` against the progenitor node (its conductor admin/app ports; `app_id` defaults to `unyt-progenitor`, matching `config/progenitor/deploy.json`). Setup builds the GlobalDefinition, two lanes, six units, and five agreements in one shot, and refuses to run if the network is already configured (`crates/unyt_cli/src/actions/holo_hosting.rs` — not resumable). It is parameterised by the connected progenitor plus six role keys supplied as flags (hf-swapper, HOT bridging agent, WindTunnel admin, pricing oracle, fee collector, oracle) — run `unyt_cli progenitor holo-hosting setup --help` for the exact flag names, and pass the keys gathered from the deployed agents' `deploy-result.json` files. Verify with `unyt_cli progenitor global get`.
+7. **Extend the network's settings, the standup's last step**, once the chain root's migration config is applied (`make gd-migration-config`): `unyt_cli progenitor extend-windows` on the progenitor node, as [`deploy-new-release.md`](./deploy-new-release.md) § Bring nodes into service, step 7, gives it.
 
 ## Infrastructure
 
