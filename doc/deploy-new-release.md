@@ -115,9 +115,14 @@ Once `config/release.json` has the real `network_seed` + `progenitor_pubkey`, de
 1. **`make blockchain-bridging` then `make hf-swapper`** — deploy these two first. Their agent keys (printed in each deploy's results, `config/<role>/results/deploy-result.json`) are needed to **create the agreements in the progenitor account**. Nothing downstream works until these agents exist.
 2. **Create the agreements** in the progenitor account using those two agent keys (manual progenitor step, in the progenitor's unyt app).
 3. **Update the lane definition in the bridge config.** Creating the agreement yields a **lane definition hash**, shown in the **UI of the progenitor's unyt app**. Copy it into `config/blockchain-bridging/services.json` → `bridge_orchestrator.holochain_lane_definition`. This is **per-release** — a fresh agreement each release means a new lane id, so this field must be updated every time (it's not carried in `release.json`). `setup-blockchain-bridge-services.sh` reads this value and the run will fail if it's stale/placeholder.
-4. **Run the bridge + swapper services:** `make blockchain-bridging-services` + `make blockchain-bridging-pricing-oracle`, then `make hf-swapper-services` (this is the step that publishes the hf-swapper agent key to Cloudflare R2 as `swap_counterparty_key` — the base `make hf-swapper` deploy does NOT do this).
+4. **Run the bridge + swapper services:** `make blockchain-bridging-services` + `make blockchain-bridging-pricing-oracle`, then `make hf-swapper-services`. The app finds the HF swapper in the network's global definition, which `unyt_cli progenitor holo-hosting setup` names; nothing publishes its key anywhere else.
 5. **Test** the core bridge/swap flow end-to-end before going further — this is the part that needs real validation.
 6. **Then the basic nodes** (`make hash-explorer`, plus its watchtower observer: `make hash-explorer-watchtower`). The base `make <role>` is a plain `.happ` install with no cross-node dependency, so these go last and in any order. A node that also exposes a gateway/tunnel (today only `hash-explorer`, identified by a `.tunnel` + `.gateway` block in its `deploy.json`) needs the extra steps in **§ Hash-explorer / gateway nodes** below. (The notary droplet gets its services at migration time — `make notaries`, driven by the workshop `deploy-release` skill.)
+7. **Last, extend the network's settings**, once the chain root's migration config is applied (`make gd-migration-config`). The last definition a standup writes runs a day, and nothing rotates it: once it expires the network refuses every spend. From the automation repo, with `<release>` the dashed label:
+
+   ```bash
+   ssh root@"$(jq -r '."progenitor-1"' ../heart/releases/<release>/ips.json)" /root/unyt-cli/unyt_cli progenitor extend-windows   # 30 days; --days N for 1 to 90
+   ```
 
 Why this order: the bridge + swapper agent keys feed the progenitor agreements, and that flow is what needs initial testing; the hash-explorer node is basic and independent, so it's safe to leave for the end.
 
