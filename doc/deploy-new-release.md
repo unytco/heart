@@ -97,7 +97,7 @@ Before deploying the app to any service node, the **progenitor must be set up**,
 
 In the automation repo these two values live in `config/release.json` (release-wide, shared by every node). You cannot deploy the services until they're filled in with the real progenitor values.
 
-The progenitor is its own droplet (the `progenitor` node type, provisioned by `make up`) and is deployed with the same agent machinery as every other node: set a fresh `network_seed` and clear `properties.progenitor_pubkey` in `release.json`, run `make progenitor` (automation) to create the network, then record the reported agent key as `properties.progenitor_pubkey`. The full step-by-step — including configuring the Holo Hosting network with `unyt_cli progenitor holo-hosting setup` once the metered agents are up — is in [Setup Progenitor](./setup-progenitor.md).
+The progenitor is its own droplet (the `progenitor` node type, provisioned by `make up`) and is deployed with the same agent machinery as every other node. Step 7's standup starts with it: `make progenitor-genkey` (automation) mints its key, you write that key into `release.json` as `properties.progenitor_pubkey` beside a fresh `network_seed`, and `make progenitor` later installs it and creates the network. The full step-by-step, including the Holo Hosting network `make holo-hosting-setup` configures before any service node installs, is in [Setup Progenitor](./setup-progenitor.md).
 
 ### 7. Bring nodes into service
 
@@ -108,23 +108,41 @@ The progenitor is its own droplet (the `progenitor` node type, provisioned by `m
 >
 > The per-node `deploy.json` files carry only what's node-specific (`heart_node`, agent `app_id`s, gateway/tunnel blocks). They do **not** carry a hardcoded release label — bumping `release.json` repoints the whole fleet.
 
-Once `config/release.json` has the real `network_seed` + `progenitor_pubkey`, deploy the nodes from the automation repo. Each `make <role>` installs the `.happ` and initialises the agent. For the manual per-node steps, see [Setup an Always-On Node](./setup-always-on-node.md) from Part 2 (agent keys) onward.
+Deploy the nodes from the automation repo. A fresh release stands up in the order `make standup` runs, listed below. A successor (`predecessor_release` set) stands up through the [migration procedure](#migration-window) instead, and `standup` refuses to run for it. For the manual per-node steps, see [Setup an Always-On Node](./setup-always-on-node.md) from Part 2 (agent keys) onward.
 
-**Deploy in dependency order, not all at once:**
+**Bring the fleet up in this order:**
 
-1. **`make blockchain-bridging` then `make hf-swapper`** — deploy these two first. Their agent keys (printed in each deploy's results, `config/<role>/results/deploy-result.json`) are needed to **create the agreements in the progenitor account**. Nothing downstream works until these agents exist.
-2. **Create the agreements** in the progenitor account using those two agent keys (manual progenitor step, in the progenitor's unyt app).
+1. **`make standup` runs these in one batch.** In production two steps fall between its stages: you write the progenitor key into `release.json` by hand after `make progenitor-genkey`, and `make redeploy-joining-service` runs before `make progenitor`. So in production, run the list stage by stage:
+
+   ```bash
+   make progenitor-genkey PROFILE=prod                   # mint the progenitor key, then write it into release.json
+   make genkey ROLE=blockchain-bridging PROFILE=prod     # bridging-app + hh-pricing-oracle keys
+   make genkey ROLE=hf-swapper PROFILE=prod              # always-on-node key
+   make redeploy-joining-service PROFILE=prod            # production only, not in the batch
+   make progenitor PROFILE=prod                          # install: the network exists
+   make holo-hosting-setup PROFILE=prod                  # the global definition, before any server installs
+   make install ROLE=blockchain-bridging PROFILE=prod
+   make blockchain-bridging-services PROFILE=prod
+   make blockchain-bridging-pricing-oracle PROFILE=prod
+   make install ROLE=hf-swapper PROFILE=prod
+   make hf-swapper-services PROFILE=prod
+   make notaries PROFILE=prod
+   make update-migration-registry PROFILE=prod           # the chain root registers its own DNA
+   make gd-migration-config PROFILE=prod                 # emit and apply the chain root's closing pair
+   ```
+
+2. **Nothing is created by hand in the app.** `make holo-hosting-setup` runs `unyt_cli progenitor holo-hosting setup` on the progenitor, which writes the global definition with its lanes, units and agreements, naming the agents whose keys step 1's `make genkey` runs minted. It runs before any server installs, so each server's genesis and first actions validate against a definition that already names it. The app finds the HF swapper in that global definition; nothing publishes its key anywhere else.
 3. **The HOT lane must name the bridge's agent.** The bridge orchestrator takes no lane setting: each cycle it bridges on the lane in force whose bridging agent is the `bridging-app` agent from step 1 and whose service units list HOT (index 1). `unyt_cli progenitor holo-hosting setup` writes the Holo Hosting lane that way. The orchestrator reads the unit as `HOT_UNIT_INDEX`, set from `bridge_orchestrator.hot_unit_index` in `config/blockchain-bridging/services.json`.
-4. **Run the bridge + swapper services:** `make blockchain-bridging-services` + `make blockchain-bridging-pricing-oracle`, then `make hf-swapper-services`. The app finds the HF swapper in the network's global definition, which `unyt_cli progenitor holo-hosting setup` names; nothing publishes its key anywhere else.
-5. **Test** the core bridge/swap flow end-to-end before going further — this is the part that needs real validation.
-6. **Then the basic nodes** (`make hash-explorer`, plus its watchtower observer: `make hash-explorer-watchtower`). The base `make <role>` is a plain `.happ` install with no cross-node dependency, so these go last and in any order. A node that also exposes a gateway/tunnel (today only `hash-explorer`, identified by a `.tunnel` + `.gateway` block in its `deploy.json`) needs the extra steps in **§ Hash-explorer / gateway nodes** below. (The notary droplet gets its services at migration time — `make notaries`, driven by the workshop `deploy-release` skill.)
-7. **Last, extend the network's settings**, once the chain root's migration config is applied (`make gd-migration-config`). The last definition a standup writes runs a day, and nothing rotates it: once it expires the network refuses every spend. From the automation repo, with `<release>` the dashed label:
+4. **Then extend the network's settings, the standup's last step**, once `make gd-migration-config` has applied the chain root's migration config. The last definition a standup writes runs a day, and nothing rotates it: once it expires the network refuses every spend. From the automation repo, with `<release>` the dashed label:
 
    ```bash
    ssh root@"$(jq -r '."progenitor-1"' ../heart/releases/<release>/ips.json)" /root/unyt-cli/unyt_cli progenitor extend-windows   # 30 days; --days N for 1 to 90
    ```
 
-Why this order: the bridge + swapper agent keys feed the progenitor agreements, and that flow is what needs initial testing; the hash-explorer node is basic and independent, so it's safe to leave for the end.
+5. **Test** the core bridge/swap flow end-to-end before going further — this is the part that needs real validation.
+6. **Then the basic nodes** (`make hash-explorer`, plus its watchtower observer: `make hash-explorer-watchtower`). The base `make <role>` is a plain `.happ` install with no cross-node dependency, so these go last and in any order. A node that also exposes a gateway/tunnel (today only `hash-explorer`, identified by a `.tunnel` + `.gateway` block in its `deploy.json`) needs the extra steps in **§ Hash-explorer / gateway nodes** below.
+
+Why this order: the global definition names each server's key, so it lands before any server installs, and `make gd-migration-config` follows `make notaries` because the chain root's closing pair is the deployed notary keys. The hash-explorer node is basic and independent, so it is safe to leave for the end.
 
 ### Hash-explorer / gateway nodes (tunnel + gateway)
 
