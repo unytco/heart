@@ -13,9 +13,9 @@ The progenitor is its **own droplet**, a first-class `progenitor` node type in t
 
 ## How "create" differs from "join"
 
-A service node joins the progenitor's network: `deploy.sh` gets a membrane proof from the joining service and installs the `alliance` DNA with `properties.progenitor_pubkey` set to the progenitor's key. The progenitor installs with **no membrane proof, but the same DNA property** — it designates **itself**. `config/progenitor/deploy.json` marks its agent `"progenitor": true`, so the deploy CLI sets `properties.progenitor_pubkey` to the progenitor's own freshly-generated key and applies it to the `alliance` role even on the no-proof path (`packages/unyt-deploy/src/{cli,admin-api}.ts`).
+A service node joins the progenitor's network: `deploy.sh` gets a membrane proof from the joining service and installs the `alliance` DNA with `properties.progenitor_pubkey` set to the progenitor's key. The progenitor installs the same way, with a membrane proof and the same DNA property, and the key that property names is its own: it designates **itself**. So its key is in `release.json`, and the joining service names this release's DNA, before `make progenitor` runs.
 
-This identical-property requirement is the crux: a cell's DNA hash is derived from its modifiers (network seed **and** properties), so the progenitor and every joiner must install with the **same** `progenitor_pubkey` or they land on different DNAs and never share a network or GlobalDefinition. Installing the progenitor with no property (letting it fall back to the "no designation ⇒ default progenitor" path in `unyt/src-tauri/src/runtime/boot/progenitor.rs`) is **not** safe for the release DNA — that relaxed behaviour is testing-only, and it produces a different hash from the joiners. The empty `joining_service.url` in the config is what selects the no-membrane-proof create path.
+This identical-property requirement is the crux: a cell's DNA hash is derived from its modifiers (network seed **and** properties), so the progenitor and every joiner must install with the **same** `progenitor_pubkey` or they land on different DNAs and never share a network or GlobalDefinition. Installing the progenitor with no property (letting it fall back to the "no designation ⇒ default progenitor" path in `unyt/src-tauri/src/runtime/boot/progenitor.rs`) is **not** safe for the release DNA: that relaxed behaviour is testing-only, and it produces a different hash from the joiners.
 
 ## Procedure
 
@@ -36,4 +36,4 @@ Run in order. Steps 1 to 5 stand up the progenitor and record its outputs; step 
 
 ## Infrastructure
 
-The progenitor droplet is provisioned like any other node — see the [README](../README.md) and the [Always-On Node guide](./setup-always-on-node.md). The only difference is the create-not-join install above.
+The progenitor droplet is provisioned like any other node: see the [README](../README.md) and the [Always-On Node guide](./setup-always-on-node.md). The only difference is that its DNA property names its own key, as above.
