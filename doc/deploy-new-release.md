@@ -161,8 +161,8 @@ make set-tunnel-secret TUNNEL=unyt-tunnel CERT=/path/to/cert.pem CREDS=/path/to/
 ```bash
 cd ../automation
 make pull-secrets                 # auto-selects heart's stack if there's only one; else PULUMI_STACK=<release>
-make hash-explorer                # base .happ deploy (also refreshes the release's DNA hash in results)
-make hash-explorer-backend        # tunnel + gateway in one step
+make hash-explorer PROFILE=prod   # base .happ deploy (also refreshes the release's DNA hash in results)
+make hash-explorer-backend PROFILE=prod  # tunnel + gateway in one step
 ```
 
 `make hash-explorer-backend` runs the tunnel then the gateway. The individual `make hash-explorer-tunnel` / `make hash-explorer-gateway` targets still exist for when you need to rotate one without the other (e.g. refresh tunnel creds without rebuilding the gateway). Only nodes whose `deploy.json` carries a `.tunnel` + `.gateway` block get these targets — today that's just `hash-explorer`.
