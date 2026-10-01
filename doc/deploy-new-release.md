@@ -97,7 +97,7 @@ Before deploying the app to any service node, the **progenitor must be set up**,
 
 In the automation repo these two values live in `config/release.json` (release-wide, shared by every node). You cannot deploy the services until they're filled in with the real progenitor values.
 
-The progenitor is its own droplet (the `progenitor` node type, provisioned by `make up`) and is deployed with the same agent machinery as every other node. Step 7's standup starts with it: `make progenitor-genkey` (automation) mints its key, you write that key into `release.json` as `properties.progenitor_pubkey` beside a fresh `network_seed`, and `make progenitor` later installs it and creates the network. The full step-by-step, including the Holo Hosting network `make holo-hosting-setup` configures before any service node installs, is in [Setup Progenitor](./setup-progenitor.md).
+The progenitor is its own droplet (the `progenitor` node type, provisioned by `make up`) and is deployed with the same agent machinery as every other node. Step 7's standup starts with it: `make progenitor-genkey` (automation) mints its key, you write that key into `release.json` as `properties.progenitor_pubkey` beside a fresh `network_seed`, and `make progenitor` later installs it and creates the network. The full step-by-step, including the Holofuel network `make holofuel-setup` configures before any service node installs, is in [Setup Progenitor](./setup-progenitor.md).
 
 ### 7. Bring nodes into service
 
@@ -119,8 +119,8 @@ Deploy the nodes from the automation repo. A fresh release stands up in the orde
    make genkey ROLE=blockchain-bridging PROFILE=prod     # bridging-app + hh-pricing-oracle keys
    make genkey ROLE=hf-swapper PROFILE=prod              # always-on-node key
    make redeploy-joining-service PROFILE=prod            # production only, not in the batch
-   make progenitor PROFILE=prod                          # install: the network exists
-   make holo-hosting-setup PROFILE=prod                  # the global definition, before any server installs
+   make progenitor PROFILE=prod                          # install the progenitor and create the network
+   make holofuel-setup PROFILE=prod                      # the global definition, before any server installs
    make install ROLE=blockchain-bridging PROFILE=prod
    make blockchain-bridging-services PROFILE=prod
    make blockchain-bridging-pricing-oracle PROFILE=prod
@@ -131,8 +131,8 @@ Deploy the nodes from the automation repo. A fresh release stands up in the orde
    make gd-migration-config PROFILE=prod                 # emit and apply the chain root's closing pair
    ```
 
-2. **Nothing is created by hand in the app.** `make holo-hosting-setup` runs `unyt_cli progenitor holo-hosting setup` on the progenitor, which writes the global definition with its lanes, units and agreements, naming the agents whose keys step 1's `make genkey` runs minted. It runs before any server installs, so each server's genesis and first actions validate against a definition that already names it. The app finds the HF swapper in that global definition; nothing publishes its key anywhere else.
-3. **The HOT lane must name the bridge's agent.** The bridge orchestrator takes no lane setting: each cycle it bridges on the lane in force whose bridging agent is the `bridging-app` agent from step 1 and whose service units list HOT (index 1). `unyt_cli progenitor holo-hosting setup` writes the Holo Hosting lane that way. The orchestrator reads the unit as `HOT_UNIT_INDEX`, set from `bridge_orchestrator.hot_unit_index` in `config/blockchain-bridging/services.json`.
+2. **Nothing is created by hand in the app.** `make holofuel-setup` runs `unyt_cli progenitor holofuel setup` on the progenitor, which writes the global definition with its lanes, units and agreements, naming the agents whose keys step 1's `make genkey` runs minted. It runs before any server installs, so each server's genesis and first actions validate against a definition that already names it. The app finds the HF swapper in that global definition; nothing publishes its key anywhere else.
+3. **The HOT lane must name the bridge's agent.** The bridge orchestrator takes no lane setting: each cycle it bridges on the lane in force whose bridging agent is the `bridging-app` agent from step 1 and whose service units list HOT (index 1). `unyt_cli progenitor holofuel setup` writes the Holo Hosting lane that way. The orchestrator reads the unit as `HOT_UNIT_INDEX`, set from `bridge_orchestrator.hot_unit_index` in `config/blockchain-bridging/services.json`.
 4. **Then extend the network's settings, the standup's last step**, once `make gd-migration-config` has applied the chain root's migration config. The last definition a standup writes runs a day, and nothing rotates it: once it expires the network refuses every spend. From the automation repo, with `<release>` the dashed label:
 
    ```bash
