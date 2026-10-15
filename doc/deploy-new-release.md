@@ -53,7 +53,7 @@ Everything else has a default in [`defaults.yaml`](../defaults.yaml) (edit that 
 # a stack with no pin reads whatever that file says today, so it stops recording
 # which versions its droplets actually booted on.
 # Both must name an existing release; first boot curl -f's them under `set -e`.
-pulumi config set heart:holochain-version holochain-0.7.0
+pulumi config set heart:holochain-version holochain-0.7.1
 pulumi config set heart:holo-keyutil-version v0.2.0
 
 # Give the release its own network endpoints (see the caveat below)

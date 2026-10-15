@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Provision **Holochain 0.7.0** (was 0.6.2-rc.0); drops the removed `signal_url`, uses the 0.7 `db_sync_level` default. **Rendered user-data changes.**
+- Provision **Holochain 0.7.1** (was 0.6.2-rc.0); drops the removed `signal_url`, uses the 0.7 `db_sync_level` default. **Rendered user-data changes.**
 - The rendered conductor config is schema-checked in tests (unknown keys, enum discriminators, required keys).
 - Those key allow-lists are re-derived from `holochain --config-schema` when a binary is on `PATH`/`HEART_HOLOCHAIN_BIN` (skipped in CI).
 - The 0.7 bump lands on the next release's fresh stack, not a running fleet — live 0.6 fleets keep running from their 0.6-era commit. See `doc/deploy-new-release.md` § Migration window.
