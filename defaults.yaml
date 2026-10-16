@@ -6,7 +6,7 @@
 # NOT listed here (required per stack, no default): release, project-name, influx-token.
 # Counts are quoted so they parse as strings, matching how Pulumi stores config.
 
-holochain-version: holochain-0.7.0
+holochain-version: holochain-0.7.1
 holo-keyutil-version: v0.2.0
 
 # Network identity. Override per release for an isolated network (and remember the

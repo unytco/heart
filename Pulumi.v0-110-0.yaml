@@ -2,6 +2,7 @@ encryptionsalt: v1:VEELA9u1ba4=:v1:XjE5Aa8x/c4gLd1m:NQMrQFOh2LFhC3hoh19XerU/OA3M
 config:
   heart:release: v0-110-0
   heart:project-name: unyt
+  heart:holochain-version: holochain-0.7.0
   digitalocean:token:
     secure: v1:78KMC/Fxqf34VaWC:Grh+6wEvf/48mGboUz368N5Jnms4sTZ8YgLkMeRe/TY91+tQdUSiGv1Zgxm9nuGciTJAqA+29LHbJAskWYAUknOHU/UoQE3jZbuY9/Fm3Z3037je8YUQ
   heart:influx-token:

@@ -1,6 +1,6 @@
 [package]
 name = "holo-keyutil"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 # lair_keystore_api version must be compatible with the lair-keystore binary
@@ -12,5 +12,5 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 base64 = "0.22"
 url = "2"
 anyhow = "1"
-holo_hash = "0.7.0"
+holo_hash = "0.7.1"
 clap = { version = "4", features = ["derive"] }

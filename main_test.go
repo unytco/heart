@@ -119,7 +119,7 @@ func TestLoadDefaults(t *testing.T) {
 // value is distinct, so an assertion cannot be satisfied by the wrong field.
 func validCloudInitData() cloudInitData {
 	return cloudInitData{
-		HolochainVersion:   "holochain-0.7.0",
+		HolochainVersion:   "holochain-0.7.1",
 		HoloKeyutilVersion: "v0.2.0",
 		BootstrapURL:       "https://bootstrap.example",
 		RelayURL:           "https://relay.example",
